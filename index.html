@@ -61,6 +61,7 @@ thead th[data-k]:hover{filter:brightness(1.12)}
 @media(max-width:800px){#mg{grid-template-columns:1fr}#sw{max-height:260px;min-height:0}}
 /* ---- ปฏิทิน Orbit (กำหนดขอบเขตเฉพาะในแผง) ---- */
 #orbpanel .btn{padding:5px 10px}
+#ouplist .x{display:none}
 #orbpanel .nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
 #orbpanel .nav b{font-size:16px}
 #orbpanel button,#orbpanel .btn{font:inherit;font-size:13px;background:var(--panel);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:5px 10px;cursor:pointer}
@@ -113,7 +114,7 @@ thead th[data-k]:hover{filter:brightness(1.12)}
   <div class="sec"><h2>โหมดแสดงผล</h2>
    <div class="row"><button id="mDay" class="on">เฉพาะวันที่เลือก</button><button id="mAll">ทุก Orbit</button></div>
    <div class="orbs" id="oorbs" style="margin-top:8px"></div></div>
-  <div class="sec" hidden><h2>เพิ่มข้อมูล .geojson</h2>
+  <div class="sec"><h2>นำเข้าไฟล์ .geojson</h2>
    <div id="odrop">ลากไฟล์มาวาง หรือ <label class="btn" style="display:inline-block">เลือกไฟล์<input type="file" id="ofile" accept=".geojson,.json" multiple hidden></label><br>
    <span class="mut">ตั้งชื่อไฟล์ตาม Orbit เช่น Orbit_290.geojson หรือ Orbit_273_10.geojson (ชุดย่อย)</span></div>
    <div id="ouplist" style="margin-top:8px"></div></div>
