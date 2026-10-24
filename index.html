@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>THEOS-2 Mission Viewer</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ctext y=%27.9em%27 font-size=%2790%27%3E%F0%9F%9B%B0%EF%B8%8F%3C/text%3E%3C/svg%3E">
+<meta name="description" content="THEOS-2 Mission Viewer: คำสั่งถ่ายภาพ (IR Status) และปฏิทิน Orbit บนแผนที่เดียวกัน">
+<meta name="theme-color" content="#2563eb">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+
+:root{--bg:#f4f6fb;--card:#fff;--tx:#1b2333;--mu:#667085;--bd:#e3e8f1;--ac:#2563eb;--ok:#16a34a;--bad:#dc2626;--warn:#d97706}
+@media(prefers-color-scheme:dark){:root{--bg:#0e1420;--card:#171f2f;--tx:#e6ebf5;--mu:#93a0b8;--bd:#273248;--ac:#60a5fa}}
+*{box-sizing:border-box}body{margin:0;font-family:"Sarabun","Noto Sans Thai",system-ui,sans-serif;background:var(--bg);color:var(--tx)}
+header{padding:18px 24px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}
+h1{font-size:20px;margin:0}h1 small{display:block;font-size:12px;color:var(--mu);font-weight:400}
+.btn{border:1px solid var(--bd);background:var(--card);color:var(--tx);padding:7px 12px;border-radius:8px;cursor:pointer;font:inherit;font-size:13px}
+.btn:hover{border-color:var(--ac);color:var(--ac)}.btn.p{background:var(--ac);color:#fff;border-color:var(--ac)}
+main{padding:0 24px 24px;display:grid;gap:16px}
+#drop{border:2px dashed var(--bd);border-radius:12px;padding:14px;text-align:center;color:var(--mu);font-size:13px}
+#drop.on{border-color:var(--ac);background:rgba(37,99,235,.07)}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.c{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px 14px}.c b{font-size:24px;display:block}.c span{font-size:12px;color:var(--mu)}
+.bar{display:flex;gap:8px;flex-wrap:wrap}.bar input,.bar select{padding:7px 10px;border:1px solid var(--bd);border-radius:8px;background:var(--card);color:var(--tx);font:inherit;font-size:13px}
+.bar input{flex:1;min-width:200px}
+.tw{background:var(--card);border:1px solid var(--bd);border-radius:12px;overflow:auto}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th{position:sticky;top:0;background:var(--card);text-align:left;padding:10px 12px;border-bottom:2px solid var(--bd);font-size:12px;color:var(--mu);white-space:nowrap;cursor:pointer}
+td{padding:10px 12px;border-bottom:1px solid var(--bd);vertical-align:top}
+tr.sel>td{background:rgba(37,99,235,.07)}
+.rid{color:var(--ac);font-weight:600;text-decoration:none}.rid:hover{text-decoration:underline}tbody>tr{cursor:pointer}.mono{font-family:ui-monospace,Consolas,monospace;font-size:12px;word-break:break-all}
+.st{display:inline-block;padding:2px 9px;border-radius:99px;font-size:11px;font-weight:600;color:#fff;background:var(--mu)}
+.st.DELETED,.st.CANCELLED,.st.REJECTED,.st.FAILED{background:var(--bad)}.st.COMPLETED,.st.ACQUIRED,.st.ACCEPTED,.st.PLANNED{background:var(--ok)}.st.PENDING,.st.INPROGRESS,.st.PROGRAMMED,.st.ACTIVE{background:var(--warn)}
+tr.g>td{border-top:2px solid var(--bd)}select.ed{border:0;color:#fff;font:inherit;font-weight:600;font-size:11px;border-radius:99px;padding:3px 6px;cursor:pointer}select.ed option{color:#000;background:#fff}.sub{width:100%;font-size:12px}.sub td{padding:5px 6px;border:0;border-top:1px dashed var(--bd)}.sub tr:first-child td{border-top:0}
+.meta{color:var(--mu);font-size:11px;display:block}
+#mapw{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:10px}
+#mh{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px;font-size:13px}
+[hidden]{display:none!important}.pg{display:grid;gap:16px}
+nav{display:flex;gap:6px;background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:4px}
+.tab{border:0;background:none;color:var(--mu);font:inherit;font-size:14px;font-weight:600;padding:8px 18px;border-radius:7px;cursor:pointer}
+.tab.on{background:var(--ac);color:#fff}.tab em{font-style:normal;font-size:11px;background:rgba(127,127,127,.25);border-radius:99px;padding:1px 7px;margin-left:6px}
+#mg{display:grid;grid-template-columns:290px 1fr;gap:10px}
+#map{height:calc(100vh - 200px);min-height:440px;border-radius:8px}
+#side{max-height:calc(100vh - 200px);min-height:440px;overflow:auto;display:grid;gap:8px;align-content:start}
+.si{border:1px solid var(--bd);border-radius:10px;padding:9px 10px;cursor:pointer;font-size:12px}.si:hover{border-color:var(--ac)}.si.on{border-color:var(--ac);background:rgba(37,99,235,.08)}
+.si .it{display:flex;align-items:center;gap:6px;margin-top:4px;color:var(--mu)}.si .it i{width:10px;height:10px;border-radius:3px;flex:none}.si .it:hover{color:var(--ac)}
+@media(max-width:800px){#mg{grid-template-columns:1fr}#side{max-height:220px;min-height:0}#map{height:60vh}}
+details summary{cursor:pointer;color:var(--ac);font-size:12px}details pre{margin:4px 0 0;max-height:140px;overflow:auto;font-size:11px;background:var(--bg);padding:6px;border-radius:6px}
+.leg span{margin-left:12px;white-space:nowrap}.leg i{display:inline-block;width:12px;height:12px;border-radius:3px;margin:0 4px 0 10px;vertical-align:-2px}
+th,td{text-align:center}td{vertical-align:middle}pre{text-align:left}.ar{font-size:13px;margin-bottom:6px}.ar b{font-size:18px}thead th{background:linear-gradient(135deg,#1e3a8a,#2563eb);color:#fff;font-size:13px;letter-spacing:.3px;padding:13px 12px;border-bottom:0;text-shadow:0 1px 1px rgba(0,0,0,.2)}
+thead th:nth-child(n+5){background:linear-gradient(135deg,#0f766e,#14b8a6)}
+thead th+th{border-left:1px solid rgba(255,255,255,.2)}thead th:first-child{border-top-left-radius:11px}thead th:last-child{border-top-right-radius:11px}
+thead th[data-k]:hover{filter:brightness(1.12)}
+
+/* ---- ปรับสำหรับหน้ารวม ---- */
+:root{--panel:var(--card);--mut:var(--mu);--sel:rgba(37,99,235,.10)}
+@media(prefers-color-scheme:dark){:root{--sel:#1d2a42}}
+#mg{grid-template-columns:380px 1fr}
+#sw{max-height:calc(100vh - 200px);min-height:440px;overflow:auto}
+#side{max-height:none;min-height:0;overflow:visible;display:grid;gap:8px;align-content:start}
+#seg{display:flex;gap:6px;margin-bottom:10px;position:sticky;top:0;background:var(--card);padding-bottom:6px;z-index:5}
+#seg .btn{flex:1}#seg .btn.on{background:var(--ac);color:#fff;border-color:var(--ac)}
+@media(max-width:800px){#mg{grid-template-columns:1fr}#sw{max-height:260px;min-height:0}}
+/* ---- ปฏิทิน Orbit (กำหนดขอบเขตเฉพาะในแผง) ---- */
+#orbpanel .btn{padding:5px 10px}
+#orbpanel .nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+#orbpanel .nav b{font-size:16px}
+#orbpanel button,#orbpanel .btn{font:inherit;font-size:13px;background:var(--panel);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:5px 10px;cursor:pointer}
+#orbpanel button:hover,#orbpanel .btn:hover{border-color:var(--ac)}
+#orbpanel button.on{background:var(--ac);color:#fff;border-color:var(--ac)}
+#orbpanel .cal{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+#orbpanel .dow{font-size:11px;text-align:center;color:var(--mut);padding:3px 0}
+#orbpanel .day{min-height:54px;border:1px solid var(--bd);border-radius:8px;padding:3px 4px;cursor:pointer;display:flex;flex-direction:column;justify-content:space-between;font-size:12px}
+#orbpanel .day.empty{border:none;cursor:default}
+#orbpanel .day.sel{background:var(--sel);border-color:var(--ac);box-shadow:0 0 0 1px var(--ac)}
+#orbpanel .day.today .n{background:var(--ac);color:#fff;border-radius:10px;padding:0 6px}
+#orbpanel .day .n{align-self:flex-start}
+#orbpanel .chip{align-self:stretch;text-align:center;color:#fff;font-weight:600;font-size:12px;border-radius:5px;padding:1px 0}
+#orbpanel .chip.nodata{opacity:.45;outline:1px dashed #fff}
+#orbpanel .sec{margin-top:14px;padding-top:12px;border-top:1px solid var(--bd)}
+#orbpanel .sec h2{font-size:14px;margin:0 0 8px}
+#orbpanel .row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+#orbpanel .lay{display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px}
+#orbpanel .sw{width:14px;height:14px;border-radius:3px;display:inline-block}
+#orbpanel .mut{color:var(--mut);font-size:12px}
+#orbpanel .orbs{display:flex;flex-wrap:wrap;gap:5px}
+#orbpanel .orbs .o{color:#fff;border-radius:6px;padding:2px 8px;font-size:12px;cursor:pointer;opacity:.9}
+#orbpanel .orbs .o.off{opacity:.35}
+#orbpanel .x{margin-left:auto;color:#d33;cursor:pointer;border:none;background:none;font-size:15px}
+#orbpanel #odrop{border:2px dashed var(--bd);border-radius:10px;padding:12px;text-align:center;font-size:13px;color:var(--mut)}
+#orbpanel #odrop.hv{border-color:var(--ac);background:var(--sel)}
+</style></head><body>
+<header><h1>THEOS-2 Mission Viewer<small>คำสั่งถ่ายภาพ (IR Status) + ปฏิทิน Orbit บนแผนที่เดียวกัน</small></h1>
+<nav><button class="tab on" id="t1" onclick="go(1)">คำสั่งถ่ายภาพ<em id="tc">0</em></button><button class="tab" id="t2" onclick="go(2)">แผนที่ + Orbit</button></nav>
+<div><input id="fi" type="file" accept=".xml" multiple hidden><button class="btn p" onclick="fi.click()">เลือกไฟล์ XML</button>
+<button class="btn" onclick="exportCSV()">Export CSV</button><button class="btn" onclick="exportGJ()">Export GeoJSON</button></div></header>
+<main>
+<div id="pg1" class="pg"><div id="drop">ลากไฟล์ XML (หลายไฟล์ได้) มาวางที่นี่ หรือกด "เลือกไฟล์ XML" — ตอนนี้แสดงไฟล์ตัวอย่างที่อัปโหลดไว้</div>
+<div class="cards" id="cards"></div>
+<div class="bar"><input id="q" placeholder="ค้นหา Request Name / ProR-Name / Status Order / Status (Strip) ..."><select id="sf" title="กรองตาม Status Order"><option value="">ทุก Status Order</option></select></div>
+<div class="tw"><table><thead><tr>
+<th data-k="id">Request Name</th><th data-k="name">ProR-Name</th><th data-k="status">Status Order</th>
+<th>Area Of Interest</th><th>programmingItem</th><th>AOI (km2)</th><th>Status (Strip)</th></tr></thead><tbody id="tb"></tbody></table></div></div>
+<div id="pg2" class="pg" hidden><div id="mapw"><div id="mh"><span id="mt">แผนที่</span>
+<span class="leg" id="leg"></span><span>สถานะ <select id="mf" class="ed" style="background:var(--ac)" onchange="mapFilter()"></select></span><button class="btn" onclick="showAll()">ดูทุกคำสั่ง</button></div>
+<div id="mg"><div id="sw">
+ <div id="seg"><button class="btn on" id="sIR" onclick="panel('ir')">คำสั่ง IR</button><button class="btn" id="sOR" onclick="panel('orb')">🛰️ ปฏิทิน Orbit</button></div>
+ <div id="side"></div>
+ <div id="orbpanel" hidden>
+  <label class="lay"><input type="checkbox" id="ovOn" checked> แสดงแนว Orbit บนแผนที่</label>
+  <div class="nav"><button id="oprev">◀</button><b id="otitle"></b><button id="onext">▶</button></div>
+  <div class="row" style="margin-bottom:8px"><button id="otoday">วันนี้</button><span class="mut">รอบวงโคจรซ้ำทุก 26 วัน</span></div>
+  <div class="cal" id="ocal"></div>
+  <div class="sec"><h2 id="oseltitle">วันที่เลือก</h2><div id="odetail" class="mut">คลิกวันที่ในปฏิทิน</div></div>
+  <div class="sec"><h2>โหมดแสดงผล</h2>
+   <div class="row"><button id="mDay" class="on">เฉพาะวันที่เลือก</button><button id="mAll">ทุก Orbit</button></div>
+   <div class="orbs" id="oorbs" style="margin-top:8px"></div></div>
+  <div class="sec" hidden><h2>เพิ่มข้อมูล .geojson</h2>
+   <div id="odrop">ลากไฟล์มาวาง หรือ <label class="btn" style="display:inline-block">เลือกไฟล์<input type="file" id="ofile" accept=".geojson,.json" multiple hidden></label><br>
+   <span class="mut">ตั้งชื่อไฟล์ตาม Orbit เช่น Orbit_290.geojson หรือ Orbit_273_10.geojson (ชุดย่อย)</span></div>
+   <div id="ouplist" style="margin-top:8px"></div></div>
+ </div>
+</div><div id="map"></div></div></div></div>
+</main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+
+const SAMPLE_NAME="mmgsimg_IR_STATUS_mmgsimg_ACQ_20250828_FY680712_TH2.xml";
+const SAMPLE=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><ns4:ImageRequestStatus xmlns:ns1="http://www.opengis.net/gml" xmlns:ns2="http://www.w3.org/1999/xlink" xmlns:ns4="http://ads/ADSEO"><schemeHeader><schemeName>ImageRequestStatus.xsd</schemeName><schemeVersion>1.0</schemeVersion></schemeHeader><requestIdentifier>mmgsimg_ACQ_20250828_FY680712_TH2</requestIdentifier><progrName>ProgR-mmgsimg_ACQ_20250828_FY680712_TH2</progrName><progrStatus>DELETED</progrStatus><areaOfInterest><polygon><geometry><ns1:exterior><ns1:LinearRing><ns1:pos srsDimension="2">0.2731086647913937 1.8345498616001872</ns1:pos><ns1:pos srsDimension="2">0.27310914995801916 1.8329214059828114</ns1:pos><ns1:pos srsDimension="2">0.27468704405018973 1.8329215495012356</ns1:pos><ns1:pos srsDimension="2">0.27468655595141106 1.8345507227281865</ns1:pos></ns1:LinearRing></ns1:exterior></geometry></polygon></areaOfInterest><programmingItem><areaOfInterest><polygon><geometry><ns1:exterior><ns1:LinearRing><ns1:pos srsDimension="2">0.2751468784459912 1.832995528406369</ns1:pos><ns1:pos srsDimension="2">0.27498044341511835 1.8338165103181172</ns1:pos><ns1:pos srsDimension="2">0.274814008227111 1.834637453977579</ns1:pos><ns1:pos srsDimension="2">0.27270841208350083 1.8341819607109278</ns1:pos><ns1:pos srsDimension="2">0.27287484910478144 1.8333614994550589</ns1:pos><ns1:pos srsDimension="2">0.2730412859700083 1.832541000277154</ns1:pos><ns1:pos srsDimension="2">0.2751468784459912 1.832995528406369</ns1:pos></ns1:LinearRing></ns1:exterior></geometry></polygon></areaOfInterest><status>DELETED</status><acquisitionsList/></programmingItem><programmingItem><areaOfInterest><polygon><geometry><ns1:exterior><ns1:LinearRing><ns1:pos srsDimension="2">0.2748254617742367 1.8345807211287148</ns1:pos><ns1:pos srsDimension="2">0.2746590264625338 1.8354016290805768</ns1:pos><ns1:pos srsDimension="2">0.27449259099386114 1.8362224988306222</ns1:pos><ns1:pos srsDimension="2">0.2726369494007038 1.8358210997670528</ns1:pos><ns1:pos srsDimension="2">0.27280338648398256 1.8350006548102227</ns1:pos><ns1:pos srsDimension="2">0.2729698234112443 1.8341801719425481</ns1:pos><ns1:pos srsDimension="2">0.2748254617742367 1.8345807211287148</ns1:pos></ns1:LinearRing></ns1:exterior></geometry></polygon></areaOfInterest><status>DELETED</status><acquisitionsList/></programmingItem></ns4:ImageRequestStatus>`;
+const $=id=>document.getElementById(id);let data=[],sortK=null,sortD=1,selKey=null;
+const D=180/Math.PI;
+const kids=(e,n)=>[...e.children].filter(c=>c.localName===n);
+const txt=(e,n)=>{const c=kids(e,n)[0];return c?c.textContent.trim():""};
+function rings(aoi){return [...aoi.getElementsByTagNameNS("*","LinearRing")].map(r=>{
+ let p=[...r.getElementsByTagNameNS("*","pos")].map(x=>x.textContent.trim().split(/\s+/).map(Number));
+ const rad=p.every(a=>Math.abs(a[0])<=Math.PI/2+1e-9&&Math.abs(a[1])<=Math.PI+1e-9);
+ p=p.map(a=>rad?[a[0]*D,a[1]*D]:a);return{pts:p,rad}})}
+function area(pts){if(pts.length<3)return 0;const la0=pts.reduce((s,p)=>s+p[0],0)/pts.length,k=111320;
+ const xy=pts.map(p=>[p[1]*k*Math.cos(la0/D),p[0]*k]);let s=0;
+ for(let i=0;i<xy.length;i++){const a=xy[i],b=xy[(i+1)%xy.length];s+=a[0]*b[1]-b[0]*a[1]}return Math.abs(s)/2e6}
+function geo(a){const r=rings(a)[0];if(!r)return null;const pts=r.pts,n=pts.length>1&&pts[0].join()==pts[pts.length-1].join()?pts.length-1:pts.length;
+ const c=[pts.slice(0,n).reduce((s,p)=>s+p[0],0)/n,pts.slice(0,n).reduce((s,p)=>s+p[1],0)/n];return{pts,n,c,km2:area(pts),rad:r.rad}}
+function parse(xml,file){const d=new DOMParser().parseFromString(xml,"application/xml");
+ if(d.querySelector("parsererror"))throw new Error("XML ไม่ถูกต้อง: "+file);const r=d.documentElement;
+ return{file,id:txt(r,"requestIdentifier"),name:txt(r,"progrName"),status:txt(r,"progrStatus"),
+ aoi:kids(r,"areaOfInterest").map(geo).filter(Boolean)[0]||null,
+ items:kids(r,"programmingItem").map(it=>({aoi:kids(it,"areaOfInterest").map(geo).filter(Boolean)[0]||null,status:txt(it,"status"),
+  acq:(kids(it,"acquisitionsList")[0]||{children:[]}).children.length}))}}
+const KC={DELETED:"#dc2626",CANCELLED:"#b91c1c",REJECTED:"#9f1239",FAILED:"#be123c",COMPLETED:"#16a34a",COMPLETED_OK:"#16a34a",ACQUIRED:"#15803d",ACCEPTED:"#0d9488",PLANNED:"#0891b2",PENDING:"#d97706",INPROGRESS:"#ea580c",PROGRAMMED:"#7c3aed",ACTIVE:"#65a30d",ACTIVATED:"#f97316",CREATED:"#facc15"},PAL=["#db2777","#0ea5e9","#a16207","#4f46e5","#059669","#c026d3"];
+const fg=v=>/^created$/i.test(v||"")?"#3b2f00":"#fff";
+function sc(st){if(!st)return"#667085";if(KC[st.toUpperCase()])return KC[st.toUpperCase()];let h=0;for(const c of st)h=(h*31+c.charCodeAt(0))>>>0;return PAL[h%PAL.length]}
+const BASE=["Activated","COMPLETED_OK","CANCELLED"],norm=v=>/^completed$/i.test(v||"")?"COMPLETED_OK":/^cancell?ed$/i.test(v||"")?"CANCELLED":v,eq=(a,b)=>String(a||"").toUpperCase()===String(b||"").toUpperCase();
+function applyEd(r){try{const e=JSON.parse(localStorage.getItem("irs_status")||"{}")[r.id];if(e){if(e.s!=null)r.status=norm(e.s);r.items.forEach((x,k)=>{if(e.it&&e.it[k]!=null)x.status=norm(e.it[k])})}}catch(_){}}
+const P=(x,f)=>{const r=parse(x,f);applyEd(r);return r};
+function setS(i,j,v){const r=data[i];if(j==="m")r.status=v;else r.items[j].status=v;
+ try{const e=JSON.parse(localStorage.getItem("irs_status")||"{}");e[r.id]={s:r.status,it:r.items.map(x=>x.status)};localStorage.setItem("irs_status",JSON.stringify(e))}catch(_){}
+ pending=true;render()}
+function stList(items){const m=new Map();data.forEach(r=>[r.status,...(items?r.items.map(x=>x.status):[])].forEach(x=>x&&!m.has(x.toUpperCase())&&m.set(x.toUpperCase(),x)));BASE.forEach(x=>m.has(x.toUpperCase())||m.set(x.toUpperCase(),x));return[...m.values()]}
+function edSel(v,fn){const o=[...BASE];if(!v)o.unshift("");else if(!o.some(x=>eq(x,v)))o.unshift(v);const cur=o.find(x=>eq(x,v))??"";
+ return`<select class="ed" style="background:${sc(v)};color:${fg(v)}" onchange="${fn}">${o.map(x=>`<option value="${x}" ${x===cur?"selected":""}>${x||"-"}</option>`).join("")}</select>`}
+const vis=r=>!$("mf").value||eq(r.status,$("mf").value);
+const fmt=(n,d=5)=>Number(n).toFixed(d);
+function aoiCell(g,key,label){if(!g)return'<span class="meta">ไม่มีข้อมูล</span>';
+ return`<div class="ar"><b>${g.km2.toFixed(2)}</b> km²<span class="meta">Area ≈ ${Math.round(g.km2*625).toLocaleString()} ไร่ · ${(g.km2*100).toFixed(1)} ha</span></div><button class="btn" onclick="show('${key}')">ดูบนแผนที่</button>
+ <span class="meta">${g.n} จุด · ศูนย์กลาง ${fmt(g.c[0],4)}, ${fmt(g.c[1],4)}${g.rad?" · แปลงจากเรเดียน":""}</span>
+ <details><summary>พิกัด (lat, lon)</summary><pre>${g.pts.map(p=>fmt(p[0],6)+", "+fmt(p[1],6)).join("\n")}</pre></details>`}
+function applyDef(){const m=stList(false).find(x=>/^activ/i.test(x)&&data.some(r=>r.status===x));$("sf").value=m||""}
+function applyMapDef(){const m=data.map(r=>r.status).find(x=>/^activ/i.test(x||""));$("mf").value=m||""}
+function render(){const q=$("q").value.toLowerCase(),sf=$("sf").value;
+ let rows=data.map((r,i)=>({...r,i})).filter(r=>(!sf||eq(r.status,sf))&&[r.id,r.name,r.status,...r.items.map(x=>x.status)].join(" ").toLowerCase().includes(q));
+ if(sortK)rows.sort((a,b)=>a[sortK].localeCompare(b[sortK])*sortD);
+ const cur=selKey?selKey.split(":")[0]:null;
+ $("tb").innerHTML=rows.map(r=>{const n=Math.max(1,r.items.length),on=cur==r.i?" sel":"";
+  const head=`<td rowspan="${n}" class="mono"><a href="#" class="rid" onclick="show('${r.i}:m');return false">${r.id}</a><span class="meta">${r.file}</span></td><td rowspan="${n}" class="mono">${r.name}</td><td rowspan="${n}">${edSel(r.status,`setS(${r.i},'m',this.value)`)}</td><td rowspan="${n}">${aoiCell(r.aoi,r.i+':m')}</td>`;
+  const item=(x,j)=>{if(!x)return'<td colspan="3" class="meta">ไม่มี programmingItem</td>';const g=x.aoi;
+   return`<td><b>แนวที่ ${j+1}</b> ${g?`<button class="btn" onclick="show('${r.i}:${j}')">ดูบนแผนที่</button>`:""}<span class="meta">${g?g.n+" จุด · ศูนย์กลาง "+fmt(g.c[0],4)+", "+fmt(g.c[1],4)+(g.rad?" · แปลงจากเรเดียน":"")+" · ":""}acquisitions: ${x.acq}</span>${g?`<details><summary>พิกัด (lat, lon)</summary><pre>${g.pts.map(p=>fmt(p[0],6)+", "+fmt(p[1],6)).join("\n")}</pre></details>`:""}</td><td><b>${g?g.km2.toFixed(2):"-"}</b></td><td>${edSel(x.status,`setS(${r.i},${j},this.value)`)}</td>`};
+  return Array.from({length:n},(_,j)=>`<tr data-i="${r.i}" class="${on}${j?"":" g"}">${j?"":head}${item(r.items[j],j)}</tr>`).join("")}).join("")||'<tr><td colspan="7" class="meta" style="padding:20px;text-align:center">ไม่พบข้อมูล</td></tr>';
+ const all=data.flatMap(r=>r.items),rc=re=>data.filter(r=>re.test(r.status||"")).length;
+ const cs=[["Request ทั้งหมด",data.length],["Activated",rc(/^activ/i)],["COMPLETED_OK",rc(/^complet/i)],["CANCELLED",rc(/^cancel/i)],["programmingItem",all.length],["พื้นที่ AOI รวม (ตร.กม.)",data.reduce((s,r)=>s+(r.aoi?r.aoi.km2:0),0).toFixed(2)]];
+ $("cards").innerHTML=cs.map(c=>`<div class="c"><b>${c[1]}</b><span>${c[0]}</span></div>`).join("");
+ $("tc").textContent=data.length;
+ const mcur=$("mf").value;$("mf").innerHTML='<option value="">ทุกสถานะ</option>'+stList(false).map(x=>`<option ${eq(x,mcur)?"selected":""}>${x}</option>`).join("");
+ $("side").innerHTML=data.map((r,i)=>!vis(r)?"":`<div class="si ${cur==i?"on":""}" onclick="show('${i}:m')"><b class="mono">${r.id}</b><div class="it"><span class="st" style="background:${sc(r.status)};color:${fg(r.status)}">${r.status||"-"}</span> <span>${r.items.length} แนว</span></div>${r.items.map((it,j)=>`<div class="it" onclick="event.stopPropagation();show('${i}:${j}')"><i style="background:${sc(it.status)}"></i>แนวที่ ${j+1} · ${it.status||"-"}</div>`).join("")}</div>`).join("")||'<div class="meta">ไม่มีคำสั่งในสถานะนี้</div>';
+ const used=[...new Set(data.flatMap(r=>r.items.map(x=>x.status)).filter(Boolean))];
+ $("leg").innerHTML='<span><i style="background:none;border:2px dashed #2563eb"></i>AOI หลัก</span>'+used.map(u=>`<span><i style="background:${sc(u)}"></i>${u}</span>`).join("");
+ const sfc=$("sf").value;$("sf").innerHTML='<option value="">ทุก Status Order</option>'+stList(false).map(x=>`<option ${eq(x,sfc)?"selected":""}>${x}</option>`).join("")}
+let map,layers,group;
+function initMap(){map=L.map("map").setView([13.75,100.5],6);
+ const g=(l)=>L.tileLayer("https://mt{s}.google.com/vt/lyrs="+l+"&x={x}&y={y}&z={z}",{subdomains:"0123",maxZoom:20,attribution:"Map data © Google"});
+ layers={"Google Street":g("m"),"Google Satellite":g("s"),"Google Hybrid":g("y"),"OpenStreetMap":L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap"})};
+ layers["Google Street"].addTo(map);L.control.layers(layers).addTo(map);group=L.layerGroup().addTo(map)}
+let pending=true;
+function go(n){$("pg1").hidden=n!==1;$("pg2").hidden=n!==2;$("t1").classList.toggle("on",n===1);$("t2").classList.toggle("on",n===2);
+ if(n===2){map.invalidateSize();if(window.orbitRedraw)orbitRedraw();if(pending){pending=false;selKey?show(selKey):showAll()}}else window.scrollTo(0,0)}
+function street(){Object.values(layers).forEach(l=>map.removeLayer(l));layers["Google Street"].addTo(map)}
+function draw(si,sj){group.clearLayers();const all=[],sb=[];
+ data.forEach((r,i)=>{if(!vis(r))return;const isR=String(i)===si,whole=isR&&sj==="m";
+  if(r.aoi){const m=L.polygon(r.aoi.pts,{color:"#2563eb",weight:isR?3:1.5,dashArray:"6 4",fill:false,opacity:isR?1:.55}).bindPopup(`<b>AOI หลัก</b><br>${r.id}<br>${r.aoi.km2.toFixed(2)} ตร.กม.`).addTo(group);all.push(m.getBounds());if(isR)sb.push(m.getBounds())}
+  r.items.forEach((it,k)=>{if(!it.aoi)return;const hit=whole||(isR&&String(k)===sj),c=sc(it.status);
+   const m=L.polygon(it.aoi.pts,{color:c,weight:hit?3:1.5,fillColor:c,fillOpacity:hit?.45:.22}).bindPopup(`<b>${r.id}</b><br>แนวที่ ${k+1} · <b style="color:${c}">${it.status||"-"}</b><br>${it.aoi.km2.toFixed(2)} ตร.กม.`).bindTooltip("แนวที่ "+(k+1),{sticky:true}).addTo(group);
+   m.on("click",()=>{selKey=i+":"+k;render()});all.push(m.getBounds());if(hit&&isR)sb.push(m.getBounds())})});
+ const b=(sb.length?sb:all).reduce((a,x)=>a.extend(x),L.latLngBounds([]));if(b.isValid())map.fitBounds(b,{padding:[30,30],maxZoom:17})}
+function show(key){pending=false;go(2);street();selKey=key;const[i,j]=key.split(":"),r=data[i];if(!vis(r)){$("mf").value=r.status||""}draw(i,j);
+ $("mt").textContent="แสดง: "+r.id+(j==="m"?" (ทุกแนว)":" — แนวที่ "+(+j+1))+" · ทุกคำสั่งแสดงอยู่บนแผนที่เดียวกัน";render()}
+function showAll(){pending=false;go(2);street();selKey=null;draw(null,null);const n=data.filter(vis).length;$("mt").textContent="แสดง "+n+" คำสั่ง"+($("mf").value?" · สถานะ "+$("mf").value:" · ทุกสถานะ")+" บน Google Street";render()}
+function mapFilter(){showAll()}
+function load(files){[...files].forEach(f=>{const rd=new FileReader();rd.onload=()=>{try{data.push(P(rd.result,f.name));$("q").value="";render();applyDef();render();show((data.length-1)+":m")}catch(e){alert(e.message)}};rd.readAsText(f)})}
+function dl(name,t,type){const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([t],{type}));a.download=name;a.click()}
+function exportCSV(){const q=s=>'"'+String(s).replace(/"/g,'""')+'"',L=[["Request Name","ProR-Name","Status Order","Area Of Interest (km2)","AOI_centroid","programmingItem","Status (Strip)","AOI (km2)","item_centroid","acquisitions"].join(",")];
+ data.forEach(r=>{const c=g=>g?fmt(g.c[0],6)+" "+fmt(g.c[1],6):"";(r.items.length?r.items:[{}]).forEach((it,j)=>L.push([r.id,r.name,r.status,r.aoi?r.aoi.km2.toFixed(3):"",c(r.aoi),it.status?j+1:"",it.status||"",it.aoi?it.aoi.km2.toFixed(3):"",c(it.aoi),it.acq??""].map(q).join(",")))});
+ dl("ir_status.csv","\ufeff"+L.join("\n"),"text/csv")}
+function exportGJ(){const f=[],ring=g=>[g.pts.map(p=>[p[1],p[0]])];
+ data.forEach(r=>{if(r.aoi)f.push({type:"Feature",properties:{requestIdentifier:r.id,progrName:r.name,progrStatus:r.status,level:"AOI"},geometry:{type:"Polygon",coordinates:ring(r.aoi)}});
+ r.items.forEach((it,j)=>it.aoi&&f.push({type:"Feature",properties:{requestIdentifier:r.id,item:j+1,status:it.status,level:"programmingItem"},geometry:{type:"Polygon",coordinates:ring(it.aoi)}}))});
+ dl("ir_status.geojson",JSON.stringify({type:"FeatureCollection",features:f},null,1),"application/geo+json")}
+fi.onchange=e=>load(e.target.files);
+["dragover","dragleave","drop"].forEach(t=>$("drop").addEventListener(t,e=>{e.preventDefault();$("drop").classList.toggle("on",t==="dragover");if(t==="drop")load(e.dataTransfer.files)}));
+$("tb").addEventListener("click",e=>{if(e.target.closest("a,button,details,select"))return;const tr=e.target.closest("tr[data-i]");if(tr)show(tr.dataset.i+":m")});
+$("q").oninput=render;$("sf").onchange=render;
+document.querySelectorAll("th[data-k]").forEach(th=>th.onclick=()=>{sortD=sortK===th.dataset.k?-sortD:1;sortK=th.dataset.k;render()});
+initMap();data.push(P(SAMPLE,SAMPLE_NAME));selKey=null;render();applyDef();applyMapDef();render();go(1);
+
+// ---- สลับแผงข้าง ----
+function panel(p){
+  const o=p==="orb";
+  document.getElementById("side").hidden=o;document.getElementById("orbpanel").hidden=!o;
+  document.getElementById("sIR").classList.toggle("on",!o);document.getElementById("sOR").classList.toggle("on",o);
+  window._orbTab=o;
+  if(o&&window.orbitRedraw)orbitRedraw();
+}
+window.orbitTabActive=()=>!!window._orbTab;
+</script>
+<script>
+const BUILTIN = {"Orbit_273":{"type":"FeatureCollection","features":[{"type":"Feature","properties":{"LAYER":"273","MAP_NAME":"Day_20.shp","begin":"2","end":"1441"},"geometry":{"type":"LineString","coordinates":[[111.2385,25.8592],[110.7823,23.9472],[109.9397,20.2663],[109.1245,16.5821],[108.3303,12.8953],[107.5518,9.2066],[106.7843,5.5168],[106.0231,1.8266],[105.4979,-0.7268]]}}]},"Orbit_273_10":{"type":"FeatureCollection","features":[{"type":"Feature","properties":{"LAYER":273,"MAP_NAME":"User Created Features","begin":2,"end":1441},"geometry":{"type":"Polygon","coordinates":[[[105.0637,2.0262],[105.0637,2.0262],[105.0637,2.0263],[105.8207,5.7156],[105.8207,5.7157],[105.8208,5.7165],[105.8208,5.7165],[105.8209,5.7167],[106.58,9.4047],[106.5801,9.4052],[106.5803,9.4065],[106.5803,9.4066],[106.5805,9.4075],[107.3457,13.0916],[107.3462,13.0939],[107.3466,13.0958],[107.3466,13.0958],[107.3471,13.0982],[108.123,16.7782],[108.1233,16.7793],[108.1236,16.7811],[108.1241,16.7835],[108.1241,16.7835],[108.1251,16.7877],[108.1251,16.788],[108.9165,20.4619],[108.9172,20.4648],[108.9174,20.4661],[108.9181,20.469],[108.9181,20.469],[108.919,20.4732],[108.9193,20.4745],[109.732,24.1425],[109.7322,24.1432],[109.7331,24.1474],[109.7333,24.1482],[109.7341,24.1516],[109.7341,24.1517],[109.735,24.1559],[109.7357,24.1588],[110.1261,25.8592],[112.3526,25.8592],[111.8281,23.7391],[111.8273,23.7357],[110.9594,20.0606],[110.9587,20.0577],[110.1232,16.3782],[110.1227,16.3758],[109.3128,12.6929],[109.3124,12.6911],[108.5225,9.0054],[108.5223,9.0041],[107.7473,5.3164],[107.7471,5.3156],[106.9824,1.6267],[106.9823,1.6264],[106.4984,-0.7268],[104.4975,-0.7268],[105.0637,2.0262]]]}}]},"Orbit_273_20":{"type":"FeatureCollection","features":[{"type":"Feature","properties":{"LAYER":273,"MAP_NAME":"User Created Features","begin":2,"end":1441},"geometry":{"type":"Polygon","coordinates":[[[104.0336,2.2397],[104.7859,5.929],[104.7859,5.929],[104.7859,5.929],[105.5357,9.6153],[105.5357,9.6154],[105.5363,9.6182],[105.5363,9.6182],[105.5364,9.6189],[106.2878,13.3015],[106.2881,13.3029],[106.2889,13.3068],[106.2889,13.3068],[106.2894,13.3091],[107.0462,16.9851],[107.0463,16.9855],[107.0471,16.9893],[107.0481,16.9942],[107.0481,16.9943],[107.0492,16.9994],[107.816,20.6683],[107.8166,20.6712],[107.8172,20.6738],[107.8185,20.6799],[107.8185,20.6799],[107.8203,20.6886],[107.8205,20.6891],[108.6018,24.347],[108.6033,24.3543],[108.6037,24.3559],[108.6052,24.363],[108.6052,24.363],[108.6071,24.3718],[108.6077,24.3745],[108.9342,25.8592],[113.5506,25.8592],[112.9468,23.5078],[112.9451,23.5007],[112.0509,19.8332],[112.0495,19.8272],[111.1929,16.1542],[111.1918,16.1492],[110.3657,12.4717],[110.3649,12.4678],[109.5633,8.7866],[109.5627,8.7838],[108.7802,5.0996],[108.7799,5.098],[108.0118,1.4116],[108.0117,1.4111],[107.5723,-0.7268],[103.4238,-0.7268],[104.0336,2.2397]]]}}]},"Orbit_273_30":{"type":"FeatureCollection","features":[{"type":"Feature","properties":{"LAYER":273,"MAP_NAME":"User Created Features","begin":2,"end":1441},"geometry":{"type":"Polygon","coordinates":[[[102.8711,2.4797],[103.6172,6.1655],[104.3567,9.8525],[105.0935,13.5396],[105.0935,13.5397],[105.0937,13.5406],[105.8293,17.2154],[105.8296,17.2173],[105.8312,17.2252],[105.8312,17.2252],[105.8319,17.2284],[106.5713,20.8944],[106.5715,20.8955],[106.5723,20.8997],[106.5743,20.9093],[106.5743,20.9094],[106.5757,20.9162],[107.3234,24.5727],[107.3244,24.5776],[107.3249,24.5801],[107.3272,24.5914],[107.3272,24.5914],[107.33,24.6048],[107.5918,25.8592],[114.9048,25.8592],[114.2042,23.2372],[114.2013,23.2261],[113.2786,19.5687],[113.2762,19.5592],[112.3969,15.895],[112.395,15.8872],[111.5515,12.2172],[111.5501,12.2111],[110.736,8.5363],[110.735,8.5319],[109.9448,4.8531],[109.9442,4.8504],[109.173,1.1684],[109.1729,1.1675],[108.7838,-0.7268],[102.2125,-0.7268],[102.8711,2.4797]]]}}]},"Orbit_274":{"type":"FeatureCollection","features":[{"type":"Feature","properties":{"LAYER":"274","MAP_NAME":"Day_15.shp","begin":"2","end":"1441"},"geometry":{"type":"LineString","coordinates":[[110.3795,25.8592],[110.2954,25.5136],[109.439,21.8344],[108.6129,18.1516],[107.8105,14.4658],[107.0259,10.778],[106.2543,7.0886],[105.4909,3.3986],[104.7315,-0.2915],[104.6419,-0.7268]]}}]},"Orbit_275":{"type":"FeatureCollection","features":[{"type":"Feature","properties":{"LAYER":"275","MAP_NAME":"Day_10.shp","begin":"2","end":"1441"},"geometry":{"type":"LineString","coordinates":[[109.2353,25.8592],[108.7705,23.9091],[107.9284,20.2279],[107.1136,16.5434],[106.3198,12.8563],[105.5416,9.1674],[104.7743,5.4774],[104.0134,1.7869],[103.4965,-0.7268]]}}]},"Orbit_276":{"type":"FeatureCollection","features":[{"type":"Feature","properties":{"LAYER":"276","MAP_NAME":"Day_05.shp","begin":"2","end":"1441"},"geometry":{"type":"LineString","coordinates":[[108.3179,25.8592],[107.5732,22.6899],[106.7409,19.0076],[105.9336,15.3223],[105.1455,11.6346],[104.3714,7.9453],[103.6067,4.2551],[102.8468,0.5648],[102.5811,-0.7268]]}}]},"Orbit_277":{"type":"FeatureCollection","features":[{"type":"Feature","properties":{"LAYER":"277","MAP_NAME":"Day_26.shp","begin":"2","end":"1441"},"geometry":{"type":"LineString","coordinates":[[107.4237,25.8592],[107.1808,24.8526],[106.3306,21.1725],[105.5094,17.489],[104.7107,13.8027],[103.929,10.1143],[103.1594,6.4247],[102.3972,2.7344],[101.6853,-0.7268]]}}]},"Orbit_278":{"type":"FeatureCollection","features":[{"type":"Feature","properties":{"LAYER":"278","MAP_NAME":"Day_21.shp","begin":"2","end":"1441"},"geometry":{"type":"LineString","coordinates":[[106.5473,25.8592],[105.885,23.0527],[105.0497,19.371],[104.2402,15.6861],[103.4504,11.9988],[102.6751,8.3098],[101.9095,4.6199],[101.1494,0.9296],[100.8086,-0.7268]]}}]},"Orbit_279":{"type":"FeatureCollection","features":[{"type":"Feature","properties":{"LAYER":"279","MAP_NAME":"Day_16.shp","begin":"2","end":"1441"},"geometry":{"type":"LineString","coordinates":[[105.6898,25.8592],[105.4029,24.6675],[104.5542,20.9874],[103.7341,17.3038],[102.9363,13.6176],[102.1552,9.9293],[101.3859,6.2398],[100.6238,2.5497],[99.9499,-0.7268]]}}]},"Orbit_280":{"type":"FeatureCollection","features":[{"type":"Feature","properties":{"LAYER":"280","MAP_NAME":"Day_11.shp","begin":"2","end":"1441"},"geometry":{"type":"LineString","coordinates":[[104.5559,25.8592],[103.843,22.8295],[103.0097,19.1473],[102.2017,15.4619],[101.4131,11.7743],[100.6387,8.085],[99.8738,4.3948],[99.114,0.7043],[98.8196,-0.7268]]}}]},"Orbit_281":{"type":"FeatureCollection","features":[{"type":"Feature","properties":{"LAYER":"281","MAP_NAME":"Day_06.shp","begin":"2","end":"1441"},"geometry":{"type":"LineString","coordinates":[[103.6372,25.8592],[103.5133,25.3491],[102.6587,21.6695],[101.834,17.9863],[101.0326,14.3003],[100.2489,10.6121],[99.4779,6.9226],[98.715,3.2323],[97.9558,-0.458],[97.9005,-0.7268]]}}]},"Orbit_282":{"type":"FeatureCollection","features":[{"type":"Feature","properties":{"LAYER":"282","MAP_NAME":"Day_01.shp","begin":"2","end":"1441"},"geometry":{"type":"LineString","coordinates":[[102.7396,25.8592],[102.2711,23.8933],[101.4292,20.2123],[100.6144,16.5279],[99.8207,12.8411],[99.0427,9.1523],[98.2754,5.4625],[97.5145,1.7722],[97.0007,-0.7268]]}}]},"Orbit_283":{"type":"FeatureCollection","features":[{"type":"Feature","properties":{"LAYER":"283","MAP_NAME":"Day_22.shp","begin":"2","end":"1441"},"geometry":{"type":"LineString","coordinates":[[101.8549,25.8592],[101.8474,25.8287],[100.9883,22.1498],[100.16,18.4672],[99.3559,14.7816],[98.5702,11.0939],[97.7978,7.4046],[97.034,3.7146],[96.2746,0.0244],[96.12,-0.7268]]}}]},"Orbit_284":{"type":"FeatureCollection","features":[{"type":"Feature","properties":{"LAYER":"284","MAP_NAME":"Day_17.shp","begin":"2","end":"1441"},"geometry":{"type":"LineString","coordinates":[[100.9983,25.8592],[100.5113,23.8146],[99.6699,20.1337],[98.8555,16.4494],[98.0621,12.7627],[97.2842,9.0741],[96.517,5.3844],[95.756,1.6943],[95.2581,-0.7268]]}}]},"Orbit_285":{"type":"FeatureCollection","features":[{"type":"Feature","properties":{"LAYER":"285","MAP_NAME":"Day_12.shp","begin":"2","end":"1441"},"geometry":{"type":"LineString","coordinates":[[99.8789,25.8592],[99.7721,25.4196],[98.917,21.74],[98.0919,18.0568],[97.2903,14.3707],[96.5064,10.6825],[95.7354,6.9929],[94.9724,3.3025],[94.2134,-0.3879],[94.1436,-0.7268]]}}]},"Orbit_286":{"type":"FeatureCollection","features":[{"type":"Feature","properties":{"LAYER":"286","MAP_NAME":"Day_07.shp","begin":"2","end":"1441"},"geometry":{"type":"LineString","coordinates":[[98.9594,25.8592],[98.5902,24.3182],[97.7447,20.6375],[96.9272,16.9534],[96.1313,13.2668],[95.3517,9.5781],[94.5835,5.8883],[93.8221,2.198],[93.2206,-0.7268]]}}]},"Orbit_287":{"type":"FeatureCollection","features":[{"type":"Feature","properties":{"LAYER":"287","MAP_NAME":"Day_02.shp","begin":"2","end":"1441"},"geometry":{"type":"LineString","coordinates":[[98.0538,25.8592],[97.362,22.9227],[96.5279,19.2408],[95.7193,15.5557],[94.9303,11.8683],[94.1555,8.1792],[93.3904,4.4892],[92.6305,0.7989],[92.3167,-0.7268]]}}]},"Orbit_288":{"type":"FeatureCollection","features":[{"type":"Feature","properties":{"LAYER":"288","MAP_NAME":"Day_23.shp","begin":"2","end":"1441"},"geometry":{"type":"LineString","coordinates":[[97.1705,25.8592],[96.9425,24.9146],[96.0918,21.2347],[95.2701,17.5513],[94.4711,13.8651],[93.6892,10.177],[92.9194,6.4875],[92.1572,2.7973],[91.4323,-0.7268]]}}]},"Orbit_289":{"type":"FeatureCollection","features":[{"type":"Feature","properties":{"LAYER":"289","MAP_NAME":"Day_18.shp","begin":"2","end":"1441"},"geometry":{"type":"LineString","coordinates":[[96.3053,25.8592],[95.62,22.9515],[94.7855,19.2697],[93.9766,15.5848],[93.1872,11.8976],[92.4123,8.2087],[91.6469,4.5189],[90.8869,0.8288],[90.5668,-0.7268]]}}]}};
+(function(){
+const E=id=>document.getElementById(id);
+
+
+
+// ---------- ตารางจับคู่ Orbit ↔ วัน (รอบ 26 วัน) ----------
+const EPOCH = Date.UTC(2026,9,1);            // 1 ต.ค. 2569 (ค.ศ. 2026) = Orbit 288
+const CYCLE = 26;
+const BY_OFFSET = {0:288,3:277,4:282,5:287,8:276,9:281,10:286,13:275,14:280,15:285,18:274,19:279,20:284,21:289,23:273,24:278,25:283};
+const MONTHS = ["มกราคม","กุมภาพันธ์","มีนาคม","เมษายน","พฤษภาคม","มิถุนายน","กรกฎาคม","สิงหาคม","กันยายน","ตุลาคม","พฤศจิกายน","ธันวาคม"];
+const DOW = ["อา","จ","อ","พ","พฤ","ศ","ส"];
+const orbitOf = (y,m,d)=>{const diff=Math.round((Date.UTC(y,m,d)-EPOCH)/864e5);const off=((diff%CYCLE)+CYCLE)%CYCLE;return BY_OFFSET[off]||null;};
+const color = n => "#16a34a";
+const VCOL = {"10":"#b794f6","20":"#a3e635","30":"#2563eb"};
+
+// ---------- ข้อมูลที่ผู้ใช้เพิ่ม ----------
+const LS="theos2_orbit_uploads_v1";
+let uploads={};
+try{uploads=JSON.parse(localStorage.getItem(LS)||"{}")}catch(e){uploads={}}
+const saveUp=()=>{try{localStorage.setItem(LS,JSON.stringify(uploads))}catch(e){alert("พื้นที่เก็บข้อมูลในเบราว์เซอร์เต็ม")}};
+const allData=()=>Object.assign({},BUILTIN,uploads);
+
+function parseId(id){const m=/^orbit[_\- ]?(\d+)(?:[_\- ](.+))?$/i.exec(id);return m?{orbit:+m[1],variant:m[2]||null}:null;}
+function orbitsIndex(){
+  const idx={};
+  for(const id in allData()){const p=parseId(id);if(!p)continue;(idx[p.orbit]??={main:null,variants:[]});
+    if(p.variant)idx[p.orbit].variants.push({id,variant:p.variant});else idx[p.orbit].main=id;}
+  for(const k in idx)idx[k].variants.sort((a,b)=>a.variant.localeCompare(b.variant,undefined,{numeric:true}));
+  return idx;
+}
+
+// ---------- แผนที่ (ใช้แผนที่ร่วมกับหน้า IR) ----------
+const grp=L.featureGroup().addTo(map);
+
+// ---------- สถานะ ----------
+const now=new Date();
+let vy=now.getFullYear(),vm=now.getMonth();
+let sel=null;                 // {y,m,d}
+let mode="day";
+const hidden=new Set();       // id ที่ปิดการแสดง
+const hiddenOrbits=new Set(); // orbit ที่ปิด (โหมดทุก Orbit)
+
+function renderCal(){
+  document.getElementById("otitle").textContent=`${MONTHS[vm]} ${vy+543}`;
+  const c=document.getElementById("ocal");c.innerHTML="";
+  DOW.forEach(d=>c.insertAdjacentHTML("beforeend",`<div class="dow">${d}</div>`));
+  const first=new Date(vy,vm,1).getDay(),n=new Date(vy,vm+1,0).getDate();
+  for(let i=0;i<first;i++)c.insertAdjacentHTML("beforeend",`<div class="day empty"></div>`);
+  const idx=orbitsIndex();
+  for(let d=1;d<=n;d++){
+    const o=orbitOf(vy,vm,d);
+    const el=document.createElement("div");
+    const isSel=sel&&sel.y==vy&&sel.m==vm&&sel.d==d;
+    const isToday=now.getFullYear()==vy&&now.getMonth()==vm&&now.getDate()==d;
+    el.className="day"+(isSel?" sel":"")+(isToday?" today":"");
+    const has=o&&idx[o];
+    el.innerHTML=`<span class="n">${d}</span>`+(o?`<span class="chip${has?"":" nodata"}" style="background:${color(o)}">${o}</span>`:"<span></span>");
+    el.onclick=()=>{sel={y:vy,m:vm,d};renderCal();renderDetail();draw(true)};
+    c.appendChild(el);
+  }
+}
+
+function renderDetail(){
+  const box=document.getElementById("odetail"),t=document.getElementById("oseltitle");
+  if(!sel){box.className="mut";box.textContent="คลิกวันที่ในปฏิทิน";t.textContent="วันที่เลือก";return}
+  const o=orbitOf(sel.y,sel.m,sel.d);
+  t.textContent=`${sel.d} ${MONTHS[sel.m]} ${sel.y+543}`;
+  if(!o){box.className="mut";box.textContent="ไม่มี Orbit ในวันนี้";return}
+  const e=orbitsIndex()[o];
+  box.className="";
+  let h=`<div class="lay"><span class="sw" style="background:${color(o)}"></span><b>Orbit ${o}</b></div>`;
+  if(!e){h+=`<div class="mut">ยังไม่มีไฟล์ .geojson ของ Orbit ${o} — เพิ่มไฟล์ชื่อ Orbit_${o}.geojson</div>`}
+  else{
+    const items=[];if(e.main)items.push({id:e.main,label:"แนวเส้นทาง (Orbit)",c:color(o)});
+    e.variants.forEach(v=>items.push({id:v.id,label:`ชุดย่อย ${v.variant}`,c:VCOL[v.variant]||"#16a085"}));
+    items.forEach(it=>h+=`<label class="lay"><input type="checkbox" data-id="${it.id}" ${hidden.has(it.id)?"":"checked"}><span class="sw" style="background:${it.c}"></span>${it.label} <span class="mut">${it.id}</span></label>`);
+  }
+  box.innerHTML=h;
+  box.querySelectorAll("input[data-id]").forEach(cb=>cb.onchange=()=>{cb.checked?hidden.delete(cb.dataset.id):hidden.add(cb.dataset.id);draw(false)});
+}
+
+function addFC(id,fc,col,isVar){
+  const p=parseId(id);
+  const lyr=L.geoJSON(fc,{
+    style:f=>f.geometry.type.includes("Polygon")?{color:col,weight:2,dashArray:"6 4",fillColor:col,fillOpacity:.1}:{color:col,weight:3.5,opacity:.95},
+    onEachFeature:(f,l)=>l.bindTooltip(`Orbit ${p?p.orbit:id}${p&&p.variant?" ("+p.variant+")":""}`,{sticky:true})
+  });
+  lyr.addTo(grp);return lyr;
+}
+
+function draw(fit){
+  grp.clearLayers();
+  if(!E("ovOn").checked)return;
+  const idx=orbitsIndex(),data=allData();
+  let any=false;
+  const list=[];
+  if(mode==="day"){
+    if(!sel)return;
+    const o=orbitOf(sel.y,sel.m,sel.d);if(!o||!idx[o])return;
+    const e=idx[o];
+    if(e.main)list.push({id:e.main,col:color(o)});
+    e.variants.forEach(v=>list.push({id:v.id,col:VCOL[v.variant]||"#16a085"}));
+    list.filter(x=>!hidden.has(x.id)).forEach(x=>addFC(x.id,data[x.id],x.col));
+  }else{
+    for(const o in idx){if(hiddenOrbits.has(+o))continue;const e=idx[o];if(e.main)addFC(e.main,data[e.main],color(+o))}
+  }
+  if(fit&&grp.getLayers().length&&window.orbitTabActive&&window.orbitTabActive()){go(2);map.invalidateSize();map.fitBounds(grp.getBounds(),{padding:[30,30]})}
+}
+
+function renderOrbs(){
+  const idx=orbitsIndex();const box=document.getElementById("oorbs");box.innerHTML="";
+  Object.keys(idx).map(Number).sort((a,b)=>a-b).forEach(o=>{
+    const s=document.createElement("span");s.className="o"+(hiddenOrbits.has(o)?" off":"");s.style.background=color(o);s.textContent=o;
+    s.onclick=()=>{hiddenOrbits.has(o)?hiddenOrbits.delete(o):hiddenOrbits.add(o);renderOrbs();if(mode==="all")draw(false)};
+    box.appendChild(s);
+  });
+}
+
+function renderUploads(){
+  const b=document.getElementById("ouplist");b.innerHTML="";
+  Object.keys(uploads).sort().forEach(id=>{
+    const p=parseId(id);const d=document.createElement("div");d.className="lay";
+    d.innerHTML=`<span>📄 ${id}</span><span class="mut">${p?"":"(ชื่อไม่ตรงรูปแบบ)"}</span>`;
+    const x=document.createElement("button");x.className="x";x.textContent="✕";x.title="ลบ";
+    x.onclick=()=>{delete uploads[id];saveUp();refresh()};d.appendChild(x);b.appendChild(d);
+  });
+}
+
+async function handleFiles(files){
+  const bad=[];let added=0;
+  for(const f of files){
+    try{
+      const j=JSON.parse(await f.text());
+      if(!j||!(j.type==="FeatureCollection"||j.type==="Feature"||j.coordinates))throw 0;
+      let id=f.name.replace(/\.(geo)?json$/i,"");
+      if(!parseId(id)&&j.name&&parseId(j.name))id=j.name;
+      if(!parseId(id)){bad.push(f.name+" (ชื่อไม่ตรงรูปแบบ Orbit_###)");continue}
+      id=id.replace(/^orbit[_\- ]?/i,"Orbit_").replace(/[\- ]/g,"_");
+      uploads[id]=j;added++;
+    }catch(e){bad.push(f.name+" (อ่านไฟล์ไม่ได้)")}
+  }
+  saveUp();refresh();
+  if(bad.length)alert("ข้ามไฟล์:\n"+bad.join("\n"));
+}
+
+function refresh(){renderCal();renderDetail();renderOrbs();renderUploads();draw(false)}
+
+// ---------- events ----------
+const showOv=()=>E("ovOn").checked;
+E("oprev").onclick=()=>{vm--;if(vm<0){vm=11;vy--}renderCal()};
+E("onext").onclick=()=>{vm++;if(vm>11){vm=0;vy++}renderCal()};
+E("otoday").onclick=()=>{vy=now.getFullYear();vm=now.getMonth();sel={y:vy,m:vm,d:now.getDate()};renderCal();renderDetail();draw(true)};
+const setMode=m=>{mode=m;E("mDay").classList.toggle("on",m==="day");E("mAll").classList.toggle("on",m==="all");draw(true)};
+E("mDay").onclick=()=>setMode("day");E("mAll").onclick=()=>setMode("all");
+E("ovOn").onchange=()=>draw(true);
+E("ofile").onchange=e=>{handleFiles([...e.target.files]);e.target.value=""};
+const od=E("odrop");
+["dragover","dragenter"].forEach(ev=>od.addEventListener(ev,e=>{e.preventDefault();od.classList.add("hv")}));
+["dragleave","drop"].forEach(ev=>od.addEventListener(ev,e=>{e.preventDefault();od.classList.remove("hv")}));
+od.addEventListener("drop",e=>handleFiles([...e.dataTransfer.files]));
+window.orbitRedraw=()=>draw(false);
+sel={y:vy,m:vm,d:now.getDate()};
+refresh();
+
+})();
+</script>
+</body></html>
