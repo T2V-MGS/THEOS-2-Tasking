@@ -203,7 +203,8 @@ function show(key){pending=false;go(2);street();selKey=key;const[i,j]=key.split(
  $("mt").textContent="แสดง: "+r.id+(j==="m"?" (ทุกแนว)":" — แนวที่ "+(+j+1))+" · ทุกคำสั่งแสดงอยู่บนแผนที่เดียวกัน";render()}
 function showAll(){pending=false;go(2);street();selKey=null;draw(null,null);const n=data.filter(vis).length;$("mt").textContent="แสดง "+n+" คำสั่ง"+($("mf").value?" · สถานะ "+$("mf").value:" · ทุกสถานะ")+" บน Google Street";render()}
 function mapFilter(){showAll()}
-function load(files){[...files].forEach(f=>{const rd=new FileReader();rd.onload=()=>{try{data.push(P(rd.result,f.name));window.syncSet&&syncSet("xml",f.name,rd.result);$("q").value="";render();applyDef();render();show((data.length-1)+":m")}catch(e){alert(e.message)}};rd.readAsText(f)})}
+function upsertXml(name,text,o){o=o||{};const row=P(text,name);const i=data.findIndex(r=>r.file===name);if(i>=0)data[i]=row;else data.push(row);if(o.local){try{const m=JSON.parse(localStorage.getItem("irs_xml")||"{}");m[name]=text;localStorage.setItem("irs_xml",JSON.stringify(m))}catch(_){if(!o.quiet)alert("พื้นที่เก็บในเบราว์เซอร์เต็ม — ไฟล์นี้จะไม่ค้างหลังรีโหลด (ถ้าเปิดแชร์ไว้ จะยังอยู่บนเซิร์ฟเวอร์)")}}if(o.sync&&window.syncSet)syncSet("xml",name,text)}
+function load(files){[...files].forEach(f=>{const rd=new FileReader();rd.onload=()=>{try{upsertXml(f.name,rd.result,{local:true,sync:true});$("q").value="";render();applyDef();render();show(data.findIndex(r=>r.file===f.name)+":m")}catch(e){alert(e.message)}};rd.readAsText(f)})}
 function dl(name,t,type){const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([t],{type}));a.download=name;a.click()}
 function exportCSV(){const q=s=>'"'+String(s).replace(/"/g,'""')+'"',L=[["Request Name","ProR-Name","Status Order","Area Of Interest (km2)","AOI_centroid","programmingItem","Status (Strip)","AOI (km2)","item_centroid","acquisitions"].join(",")];
  data.forEach(r=>{const c=g=>g?fmt(g.c[0],6)+" "+fmt(g.c[1],6):"";(r.items.length?r.items:[{}]).forEach((it,j)=>L.push([r.id,r.name,r.status,r.aoi?r.aoi.km2.toFixed(3):"",c(r.aoi),it.status?j+1:"",it.status||"",it.aoi?it.aoi.km2.toFixed(3):"",c(it.aoi),it.acq??""].map(q).join(",")))});
@@ -217,7 +218,7 @@ fi.onchange=e=>load(e.target.files);
 $("tb").addEventListener("click",e=>{if(e.target.closest("a,button,details,select"))return;const tr=e.target.closest("tr[data-i]");if(tr)show(tr.dataset.i+":m")});
 $("q").oninput=render;$("sf").onchange=render;
 document.querySelectorAll("th[data-k]").forEach(th=>th.onclick=()=>{sortD=sortK===th.dataset.k?-sortD:1;sortK=th.dataset.k;render()});
-initMap();data.push(P(SAMPLE,SAMPLE_NAME));selKey=null;render();applyDef();applyMapDef();render();go(1);
+initMap();data.push(P(SAMPLE,SAMPLE_NAME));try{const m=JSON.parse(localStorage.getItem("irs_xml")||"{}");for(const n in m){try{upsertXml(n,m[n])}catch(_){}}}catch(_){}selKey=null;render();applyDef();applyMapDef();render();go(1);
 
 // ---- สลับแผงข้าง ----
 function panel(p){
@@ -401,41 +402,64 @@ refresh();
 </script>
 <script>
 /* ===== ตั้งค่าการแชร์ข้อมูลร่วมกัน (Google Apps Script) =====
-   วาง URL ของ Web App (ลงท้าย /exec) และรหัสลับ (ต้องตรงกับ KEY ใน Code.gs)
-   ถ้าเว้นว่าง = ปิดการแชร์ ข้อมูลเก็บในเบราว์เซอร์ของแต่ละคนเหมือนเดิม */
+   SYNC_URL = URL ของ Web App (ลงท้าย /exec)
+   SYNC_KEY = รหัสลับ ต้องตรงกับ KEY ใน Code.gs (ถ้า KEY ใน Code.gs เว้นว่าง ก็เว้นว่างที่นี่) */
 window.SYNC_URL = "https://script.google.com/macros/s/AKfycbxZDSNbxLb9ajnQlCkTBPaDTkbfJzRelmk1UFAZGBdkV03olpIcNOLZki_H742_0xeY/exec";
-window.SYNC_KEY = "";
+window.SYNC_KEY = "https://script.google.com/macros/s/AKfycbxZDSNbxLb9ajnQlCkTBPaDTkbfJzRelmk1UFAZGBdkV03olpIcNOLZki_H742_0xeY/exec";
 </script>
 <script>
 (function(){
 const U=window.SYNC_URL,K=window.SYNC_KEY,B=document.getElementById("syncb");
-const setB=(t,c)=>{B.textContent=t;B.style.color=c||"var(--mu)"};
+let detail="";
+const setB=(t,c,d)=>{B.textContent=t;B.style.color=c||"var(--mu)";B.style.cursor="pointer";B.title="คลิกเพื่อซิงค์ใหม่ / ดูรายละเอียด";detail=d||t};
 if(!U){window.syncSet=null;setB("แชร์ร่วมกัน: ยังไม่ตั้งค่า");return}
-window.syncSet=(kind,id,value)=>fetch(U,{method:"POST",body:JSON.stringify({key:K,kind,id,value})})
-  .then(r=>r.json()).then(j=>{if(j.error)throw 0;setB("แชร์ร่วมกัน: บันทึกแล้ว","var(--ok)")})
-  .catch(()=>setB("แชร์ร่วมกัน: บันทึกไม่สำเร็จ","var(--bad)"));
-let last="",first=true;
+async function call(url,opt){
+  let r,txt;
+  try{r=await fetch(url,opt);txt=await r.text()}catch(e){throw {code:"net",msg:"เชื่อมต่อไม่ได้ (เครือข่าย/CORS) — ตรวจว่า Deploy เป็น Web app และ Who has access = Anyone"}}
+  let j;try{j=JSON.parse(txt)}catch(e){throw {code:"html",msg:"เซิร์ฟเวอร์ไม่ได้ตอบเป็น JSON — มักเกิดจากตั้งสิทธิ์ไม่ใช่ Anyone หรือ URL ไม่ใช่ลิงก์ /exec ที่ Deploy ล่าสุด"}}
+  if(j&&j.error==="forbidden")throw {code:"key",msg:"รหัสลับไม่ตรง — SYNC_KEY ใน index.html ต้องเหมือน KEY ใน Code.gs (และต้อง Deploy เวอร์ชันใหม่หลังแก้ Code.gs)"};
+  if(j&&j.error)throw {code:"srv",msg:"เซิร์ฟเวอร์ตอบ: "+j.error};
+  return j;
+}
+const short={net:"เชื่อมต่อไม่ได้",html:"สิทธิ์/URL ไม่ถูกต้อง",key:"รหัสลับไม่ตรง",srv:"เซิร์ฟเวอร์ผิดพลาด"};
+const fail=e=>setB("แชร์ร่วมกัน: "+(short[e.code]||"ผิดพลาด"),"var(--bad)",e.msg||String(e));
+window.syncSet=(kind,id,value)=>call(U,{method:"POST",body:JSON.stringify({key:K,kind,id,value})})
+  .then(()=>setB("แชร์ร่วมกัน: บันทึกแล้ว","var(--ok)")).catch(fail);
+let last="";
+const lj=k=>{try{return JSON.parse(localStorage.getItem(k)||"{}")}catch(_){return{}}};
 function apply(d){
-  try{const cur=JSON.parse(localStorage.getItem("irs_status")||"{}");localStorage.setItem("irs_status",JSON.stringify(Object.assign(cur,d.status||{})))}catch(_){}
-  for(const n in d.xml||{}){if(!data.some(r=>r.file===n)){try{data.push(P(d.xml[n],n))}catch(_){}}}
+  try{localStorage.setItem("irs_status",JSON.stringify(Object.assign(lj("irs_status"),d.status||{})))}catch(_){}
+  const lx=lj("irs_xml");
+  for(const n in d.xml||{}){
+    if(lx[n]===d.xml[n]&&data.some(r=>r.file===n))continue;
+    try{upsertXml(n,d.xml[n],{local:true,quiet:true})}catch(_){}
+  }
   data.forEach(applyEd);
   if(window.orbitSetUploads)orbitSetUploads(d.geo||{});
   applyDef();applyMapDef();render();
   if(!$("pg2").hidden){selKey?show(selKey):showAll()}
 }
+function pushMissing(d){
+  const sv=k=>(d&&d[k])||{};
+  const lx=lj("irs_xml");for(const n in lx)if(!(n in sv("xml")))syncSet("xml",n,lx[n]);
+  const ls=lj("irs_status");for(const n in ls)if(!(n in sv("status")))syncSet("status",n,ls[n]);
+  const mine=window.orbitGetUploads?orbitGetUploads():{};for(const n in mine)if(!(n in sv("geo")))syncSet("geo",n,mine[n]);
+}
+let busy=false;
 async function pull(){
+  if(busy)return;busy=true;
   try{
-    const r=await fetch(U+(U.includes("?")?"&":"?")+"key="+encodeURIComponent(K));
-    const d=await r.json();if(d.error)throw 0;
+    const d=await call(U+(U.includes("?")?"&":"?")+"key="+encodeURIComponent(K)+"&t="+Date.now());
     const h=JSON.stringify(d);
     if(h!==last){last=h;apply(d)}
-    if(first){first=false;
-      const mine=window.orbitGetUploads?orbitGetUploads():{};
-      for(const id in mine)if(!(d.geo||{})[id])syncSet("geo",id,mine[id]);}
-    setB("แชร์ร่วมกัน: เชื่อมต่อแล้ว","var(--ok)");
-  }catch(e){setB("แชร์ร่วมกัน: เชื่อมต่อไม่ได้","var(--bad)")}
+    pushMissing(d);
+    const n=Object.keys(d.xml||{}).length+Object.keys(d.geo||{}).length;
+    setB("แชร์ร่วมกัน: เชื่อมต่อแล้ว ("+n+" ไฟล์)","var(--ok)");
+  }catch(e){fail(e)}
+  busy=false;
 }
-pull();setInterval(pull,60000);
+B.onclick=()=>{pull().then(()=>alert(detail))};
+pull();setInterval(pull,30000);
 })();
 </script>
 
