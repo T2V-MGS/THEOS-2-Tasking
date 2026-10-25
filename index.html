@@ -493,13 +493,13 @@ d.querySelectorAll("[data-c]").forEach(b=>b.onclick=async()=>{const i=document.g
 /* ===== ตั้งค่าการแชร์ข้อมูลร่วมกัน (Google Apps Script) =====
    SYNC_URL = URL ของ Web App (ลงท้าย /exec)
    SYNC_KEY = รหัสลับ ต้องตรงกับ KEY ใน Code.gs (ถ้า KEY ใน Code.gs เว้นว่าง ก็เว้นว่างที่นี่) */
-window.SYNC_URL = "https://script.google.com/macros/s/AKfycbz8pBHPshCNNuDw0A3wGXwVFhBPxjxpEeRr2rSOAGXFd_ip-OJmSxpvU5ETQ9X267g8sA/exec";
+window.SYNC_URL = "https://script.google.com/macros/s/AKfycbyPqAYR9KREzD40t7BHVIfJ8GarA3KUDAXg6fjXynMbgR3F6KQN4lSY6bpONDyoLypxXg/exec";
 window.SYNC_KEY = "theos2-kuy8472";
 </script>
 <script>
 (function(){
 const U=window.SYNC_URL,K=window.SYNC_KEY,B=document.getElementById("syncb");
-const BUILD="2026-10-25-f";const RO=!!window.RO;let detail="",srv={xml:0,geo:0,status:0};const UP=document.getElementById("syncup");
+const BUILD="2026-10-25-g";let srvVer=1;const RO=!!window.RO;let detail="",srv={xml:0,geo:0,status:0};const UP=document.getElementById("syncup");
 const setB=(t,c,d)=>{B.textContent=t;B.style.color=c||"var(--mu)";B.style.cursor="pointer";B.title="คลิกเพื่อซิงค์ใหม่ / ดูรายละเอียด";detail=d||t};
 if(!U){window.syncSet=null;setB("แชร์ร่วมกัน: ยังไม่ตั้งค่า");return}
 async function call(url,opt){
@@ -512,8 +512,23 @@ async function call(url,opt){
 }
 const short={net:"เชื่อมต่อไม่ได้",html:"สิทธิ์/URL ไม่ถูกต้อง",key:"รหัสลับไม่ตรง",srv:"เซิร์ฟเวอร์ผิดพลาด"};
 const fail=e=>setB("แชร์ร่วมกัน: "+(short[e.code]||"ผิดพลาด"),"var(--bad)",e.msg||String(e));
-window.syncSet=(kind,id,value)=>call(U,{method:"POST",body:JSON.stringify({key:K,kind,id,value})})
-  .then(()=>setB("แชร์ร่วมกัน: บันทึกแล้ว","var(--ok)")).catch(fail);
+let pend=[],waiters=[],timer=null,sending=false;
+async function flush(){
+  if(sending){timer=setTimeout(flush,500);return}
+  sending=true;
+  const ops=pend.splice(0),ws=waiters.splice(0);
+  try{
+    if(ops.length){
+      const m=new Map();ops.forEach(o=>m.set(o.kind+"\u0000"+o.id,o));
+      const list=[...m.values()];
+      if(srvVer>=2){for(let i=0;i<list.length;i+=15)await call(U,{method:"POST",body:JSON.stringify({key:K,ops:list.slice(i,i+15)})})}
+      else{for(const o of list)await call(U,{method:"POST",body:JSON.stringify({key:K,kind:o.kind,id:o.id,value:o.value})})}
+      setB("แชร์ร่วมกัน: บันทึกแล้ว ("+list.length+" รายการ)","var(--ok)");
+    }
+  }catch(e){pend.unshift(...ops);fail(e)}
+  sending=false;ws.forEach(r=>r());
+}
+window.syncSet=(kind,id,value)=>new Promise(res=>{pend.push({kind,id,value});waiters.push(res);clearTimeout(timer);timer=setTimeout(flush,400)});
 if(RO)window.syncSet=null;
 let last="";
 const lj=k=>{try{return JSON.parse(localStorage.getItem(k)||"{}")}catch(_){return{}}};
@@ -540,14 +555,15 @@ async function pull(){
   if(busy)return;busy=true;
   try{
     const d=await call(U+(U.includes("?")?"&":"?")+"key="+encodeURIComponent(K)+"&t="+Date.now());
+    srvVer=d.ver||1;
     const h=JSON.stringify(d);
     if(h!==last){last=h;apply(d)}
     if(!RO)pushMissing(d);
     srv={xml:Object.keys(d.xml||{}).length,geo:Object.keys(d.geo||{}).length,status:Object.keys(d.status||{}).length};
     const lc={xml:Object.keys(lj("irs_xml")).length,status:Object.keys(lj("irs_status")).length,geo:Object.keys(window.orbitGetUploads?orbitGetUploads():{}).length};
     const hh=new Date().toLocaleTimeString("th-TH");
-    setB((RO?"โหมดดูอย่างเดียว":"แชร์ร่วมกัน")+": เชื่อมต่อแล้ว · ซิงค์ "+hh,"var(--ok)",
-      "เวอร์ชันหน้าเว็บ: "+BUILD+"\nซิงค์ล่าสุด: "+hh+"\n\nบนเซิร์ฟเวอร์: XML "+srv.xml+" ไฟล์ · .geojson "+srv.geo+" ไฟล์ · สถานะ "+srv.status+" รายการ\nในเครื่องนี้: XML "+lc.xml+" · .geojson "+lc.geo+" · สถานะ "+lc.status+"\n\nถ้าบนเซิร์ฟเวอร์เป็น 0 แต่ในเครื่องมีข้อมูล ให้กด \"⬆ ส่งข้อมูลเครื่องนี้ขึ้นแชร์\"");
+    setB((RO?"โหมดดูอย่างเดียว":"แชร์ร่วมกัน")+": เชื่อมต่อแล้ว · เซิร์ฟเวอร์ XML "+srv.xml+" / geojson "+srv.geo+" / สถานะ "+srv.status+" · "+hh,srvVer>=2?"var(--ok)":"var(--bad)",
+      "เวอร์ชันหน้าเว็บ: "+BUILD+" · เวอร์ชัน Code.gs: "+srvVer+(srvVer<2?" (เก่า — ควรวาง Code.gs ใหม่แล้ว Deploy New version)":"")+"\nซิงค์ล่าสุด: "+hh+"\n\nไฟล์ XML บนเซิร์ฟเวอร์: "+(Object.keys(d.xml||{}).join(", ")||"-")+"\n.geojson บนเซิร์ฟเวอร์: "+(Object.keys(d.geo||{}).join(", ")||"-")+"\n\nบนเซิร์ฟเวอร์: XML "+srv.xml+" ไฟล์ · .geojson "+srv.geo+" ไฟล์ · สถานะ "+srv.status+" รายการ\nในเครื่องนี้: XML "+lc.xml+" · .geojson "+lc.geo+" · สถานะ "+lc.status+"\n\nถ้าบนเซิร์ฟเวอร์เป็น 0 แต่ในเครื่องมีข้อมูล ให้กด \"⬆ ส่งข้อมูลเครื่องนี้ขึ้นแชร์\"");
   }catch(e){fail(e)}
   busy=false;
 }
