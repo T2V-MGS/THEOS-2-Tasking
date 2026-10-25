@@ -1,8 +1,0 @@
-{
-"type": "FeatureCollection",
-"name": "Orbit_287",
-"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
-"features": [
-{ "type": "Feature", "properties": { "GM_LAYER": "Unknown Line Type", "LAYER": "287", "MAP_NAME": "Day_02.shp", "begin": "2", "end": "1441", "LINE_STYLE": "Solid", "LINE_COLOR": "RGB(0,0,0)", "LINE_WIDTH": 1 }, "geometry": { "type": "LineString", "coordinates": [ [ 98.05377769686298, 25.859188778928534 ], [ 97.362018830000011, 22.92272198 ], [ 96.527943420000099, 19.24075661 ], [ 95.719342299999937, 15.55569427000006 ], [ 94.93028288000005, 11.86827414000004 ], [ 94.15554652000003, 8.179210544 ], [ 93.390414929999963, 4.48920165200002 ], [ 92.630494539999972, 0.79893557500003 ], [ 92.316684029237678, -0.726779657488774 ] ] } }
-]
-}
