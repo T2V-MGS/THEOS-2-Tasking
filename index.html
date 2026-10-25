@@ -4,6 +4,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ctext y=%27.9em%27 font-size=%2790%27%3E%F0%9F%9B%B0%EF%B8%8F%3C/text%3E%3C/svg%3E">
 <meta name="description" content="THEOS-2 Mission Viewer: คำสั่งถ่ายภาพ (IR Status) และปฏิทิน Orbit บนแผนที่เดียวกัน">
 <meta name="theme-color" content="#2563eb">
+<meta http-equiv="Cache-Control" content="no-cache">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <style>
 
@@ -92,7 +93,7 @@ thead th[data-k]:hover{filter:brightness(1.12)}
 <header><h1>THEOS-2 Mission Viewer<small>คำสั่งถ่ายภาพ (IR Status) + ปฏิทิน Orbit บนแผนที่เดียวกัน</small></h1>
 <nav><button class="tab on" id="t1" onclick="go(1)">คำสั่งถ่ายภาพ<em id="tc">0</em></button><button class="tab" id="t2" onclick="go(2)">แผนที่ + Orbit</button></nav>
 <div><input id="fi" type="file" accept=".xml" multiple hidden><button class="btn p" onclick="fi.click()">เลือกไฟล์ XML</button>
-<button class="btn" onclick="exportCSV()">Export CSV</button><button class="btn" onclick="exportGJ()">Export GeoJSON</button> <span id="syncb" style="font-size:12px;color:var(--mu)"></span></div></header>
+<button class="btn" onclick="exportCSV()">Export CSV</button><button class="btn" onclick="exportGJ()">Export GeoJSON</button> <button class="btn" id="syncup" style="display:none">⬆ ส่งข้อมูลเครื่องนี้ขึ้นแชร์</button> <span id="syncb" style="font-size:12px;color:var(--mu)"></span></div></header>
 <main>
 <div id="pg1" class="pg"><div id="drop">ลากไฟล์ XML (หลายไฟล์ได้) มาวางที่นี่ หรือกด "เลือกไฟล์ XML" — ตอนนี้แสดงไฟล์ตัวอย่างที่อัปโหลดไว้</div>
 <div class="cards" id="cards"></div>
@@ -404,13 +405,13 @@ refresh();
 /* ===== ตั้งค่าการแชร์ข้อมูลร่วมกัน (Google Apps Script) =====
    SYNC_URL = URL ของ Web App (ลงท้าย /exec)
    SYNC_KEY = รหัสลับ ต้องตรงกับ KEY ใน Code.gs (ถ้า KEY ใน Code.gs เว้นว่าง ก็เว้นว่างที่นี่) */
-window.SYNC_URL = "https://script.google.com/macros/s/AKfycbzTob_osprbgexrggZ48PwK77K5kxByI_8oZDcRGso6duIG6zr_oZTzifQHiIWVdFp_/exec";
-window.SYNC_KEY = "https://script.google.com/macros/s/AKfycbzTob_osprbgexrggZ48PwK77K5kxByI_8oZDcRGso6duIG6zr_oZTzifQHiIWVdFp_/exec";
+window.SYNC_URL = "https://script.google.com/macros/s/AKfycbz8pBHPshCNNuDw0A3wGXwVFhBPxjxpEeRr2rSOAGXFd_ip-OJmSxpvU5ETQ9X267g8sA/exec";
+window.SYNC_KEY = "theos2-kuy8472";
 </script>
 <script>
 (function(){
 const U=window.SYNC_URL,K=window.SYNC_KEY,B=document.getElementById("syncb");
-let detail="";
+const BUILD="2026-10-25-b";let detail="",srv={xml:0,geo:0,status:0};const UP=document.getElementById("syncup");
 const setB=(t,c,d)=>{B.textContent=t;B.style.color=c||"var(--mu)";B.style.cursor="pointer";B.title="คลิกเพื่อซิงค์ใหม่ / ดูรายละเอียด";detail=d||t};
 if(!U){window.syncSet=null;setB("แชร์ร่วมกัน: ยังไม่ตั้งค่า");return}
 async function call(url,opt){
@@ -453,12 +454,25 @@ async function pull(){
     const h=JSON.stringify(d);
     if(h!==last){last=h;apply(d)}
     pushMissing(d);
-    const n=Object.keys(d.xml||{}).length+Object.keys(d.geo||{}).length;
-    setB("แชร์ร่วมกัน: เชื่อมต่อแล้ว ("+n+" ไฟล์)","var(--ok)");
+    srv={xml:Object.keys(d.xml||{}).length,geo:Object.keys(d.geo||{}).length,status:Object.keys(d.status||{}).length};
+    const lc={xml:Object.keys(lj("irs_xml")).length,status:Object.keys(lj("irs_status")).length,geo:Object.keys(window.orbitGetUploads?orbitGetUploads():{}).length};
+    const hh=new Date().toLocaleTimeString("th-TH");
+    setB("แชร์ร่วมกัน: เชื่อมต่อแล้ว · ซิงค์ "+hh,"var(--ok)",
+      "เวอร์ชันหน้าเว็บ: "+BUILD+"\nซิงค์ล่าสุด: "+hh+"\n\nบนเซิร์ฟเวอร์: XML "+srv.xml+" ไฟล์ · .geojson "+srv.geo+" ไฟล์ · สถานะ "+srv.status+" รายการ\nในเครื่องนี้: XML "+lc.xml+" · .geojson "+lc.geo+" · สถานะ "+lc.status+"\n\nถ้าบนเซิร์ฟเวอร์เป็น 0 แต่ในเครื่องมีข้อมูล ให้กด \"⬆ ส่งข้อมูลเครื่องนี้ขึ้นแชร์\"");
   }catch(e){fail(e)}
   busy=false;
 }
 B.onclick=()=>{pull().then(()=>alert(detail))};
+function pushAll(){
+  if(!confirm("ส่งข้อมูลทั้งหมดในเครื่องนี้ (XML, .geojson, สถานะ) ขึ้นเซิร์ฟเวอร์?\nรายการชื่อเดียวกันบนเซิร์ฟเวอร์จะถูกทับด้วยค่าในเครื่องนี้"))return;
+  const lx=lj("irs_xml"),ls=lj("irs_status"),mine=window.orbitGetUploads?orbitGetUploads():{};
+  const jobs=[];
+  for(const n in lx)jobs.push(syncSet("xml",n,lx[n]));
+  for(const n in ls)jobs.push(syncSet("status",n,ls[n]));
+  for(const n in mine)jobs.push(syncSet("geo",n,mine[n]));
+  Promise.all(jobs).then(()=>{last="";return pull()}).then(()=>alert("ส่งแล้ว\n\n"+detail));
+}
+if(UP){UP.style.display="";UP.onclick=pushAll}
 pull();setInterval(pull,30000);
 })();
 </script>
