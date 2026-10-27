@@ -212,14 +212,14 @@ function geo(a){const r=rings(a)[0];if(!r)return null;const pts=r.pts,n=pts.leng
  const c=[pts.slice(0,n).reduce((s,p)=>s+p[0],0)/n,pts.slice(0,n).reduce((s,p)=>s+p[1],0)/n];return{pts,n,c,km2:area(pts),rad:r.rad}}
 function parse(xml,file){const d=new DOMParser().parseFromString(xml,"application/xml");
  if(d.querySelector("parsererror"))throw new Error("XML ไม่ถูกต้อง: "+file);const r=d.documentElement;
- return{file,id:txt(r,"requestIdentifier"),name:txt(r,"progrName"),status:txt(r,"progrStatus"),
+ return{file,id:txt(r,"requestIdentifier"),name:txt(r,"progrName"),status:norm(txt(r,"progrStatus")),
  aoi:kids(r,"areaOfInterest").map(geo).filter(Boolean)[0]||null,
- items:kids(r,"programmingItem").map(it=>({aoi:kids(it,"areaOfInterest").map(geo).filter(Boolean)[0]||null,status:txt(it,"status"),
+ items:kids(r,"programmingItem").map(it=>({aoi:kids(it,"areaOfInterest").map(geo).filter(Boolean)[0]||null,status:norm(txt(it,"status")),
   acq:(kids(it,"acquisitionsList")[0]||{children:[]}).children.length}))}}
 const KC={DELETED:"#dc2626",CANCELLED:"#b91c1c",REJECTED:"#9f1239",FAILED:"#be123c",COMPLETED:"#16a34a",COMPLETED_OK:"#16a34a",ACQUIRED:"#15803d",ACCEPTED:"#0d9488",PLANNED:"#0891b2",PENDING:"#d97706",INPROGRESS:"#ea580c",PROGRAMMED:"#7c3aed",ACTIVE:"#65a30d",ACTIVATED:"#f97316",CREATED:"#facc15"},PAL=["#db2777","#0ea5e9","#a16207","#4f46e5","#059669","#c026d3"];
 const fg=v=>/^created$/i.test(v||"")?"#3b2f00":"#fff";
 function sc(st){if(!st)return"#667085";if(KC[st.toUpperCase()])return KC[st.toUpperCase()];let h=0;for(const c of st)h=(h*31+c.charCodeAt(0))>>>0;return PAL[h%PAL.length]}
-const BASE=["Activated","COMPLETED_OK","CANCELLED"],norm=v=>/^completed$/i.test(v||"")?"COMPLETED_OK":/^cancell?ed$/i.test(v||"")?"CANCELLED":v,eq=(a,b)=>String(a||"").toUpperCase()===String(b||"").toUpperCase();
+const BASE=["ACTIVATED","COMPLETED_OK","CANCELLED"],norm=v=>/^activated$/i.test(v||"")?"ACTIVATED":/^completed$/i.test(v||"")?"COMPLETED_OK":/^cancell?ed$/i.test(v||"")?"CANCELLED":v,eq=(a,b)=>String(a||"").toUpperCase()===String(b||"").toUpperCase();
 function applyEd(r){try{const e=JSON.parse(localStorage.getItem("irs_status")||"{}")[r.id];if(e){if(e.s!=null)r.status=norm(e.s);r.items.forEach((x,k)=>{if(e.it&&e.it[k]!=null)x.status=norm(e.it[k])})}}catch(_){}}
 const P=(x,f)=>{const r=parse(x,f);applyEd(r);return r};
 function setS(i,j,v){const r=data[i];if(j==="m")r.status=v;else r.items[j].status=v;
@@ -236,7 +236,7 @@ function aoiCell(g,key,label){if(!g)return'<span class="meta">ไม่มีข
  <span class="meta">${g.n} จุด · ศูนย์กลาง ${fmt(g.c[0],4)}, ${fmt(g.c[1],4)}${g.rad?" · แปลงจากเรเดียน":""}</span>
 `}
 function applyDef(){const m=stList(false).find(x=>/^activ/i.test(x)&&data.some(r=>r.status===x));$("sf").value=m||""}
-function applyMapDef(){const l=stList(false),m=l.find(x=>/^activ/i.test(x))||"Activated";$("mf").innerHTML='<option value="">ทุกสถานะ</option>'+l.map(x=>`<option ${x===m?"selected":""}>${x}</option>`).join("");$("mf").value=m}
+function applyMapDef(){const l=stList(false),m=l.find(x=>/^activ/i.test(x))||"ACTIVATED";$("mf").innerHTML='<option value="">ทุกสถานะ</option>'+l.map(x=>`<option ${x===m?"selected":""}>${x}</option>`).join("");$("mf").value=m}
 function render(){const q=$("q").value.toLowerCase(),sf=$("sf").value;
  let rows=data.map((r,i)=>({...r,i})).filter(r=>(!sf||eq(r.status,sf))&&[r.id,r.name,r.status,...r.items.map(x=>x.status)].join(" ").toLowerCase().includes(q));
  if(sortK)rows.sort((a,b)=>a[sortK].localeCompare(b[sortK])*sortD);
@@ -247,7 +247,7 @@ function render(){const q=$("q").value.toLowerCase(),sf=$("sf").value;
    return`<td><b>แนวที่ ${j}</b> ${g?`<button class="btn" onclick="show('${r.i}:${j}')">ดูบนแผนที่</button>`:""}<span class="meta">${g?g.n+" จุด · ศูนย์กลาง "+fmt(g.c[0],4)+", "+fmt(g.c[1],4)+(g.rad?" · แปลงจากเรเดียน":"")+" · ":""}acquisitions: ${x.acq}</span></td><td><b>${g?n2(g.km2):"-"}</b></td><td>${edSel(x.status,`setS(${r.i},${j},this.value)`)}</td>`};
   return Array.from({length:n},(_,j)=>`<tr data-i="${r.i}" class="${on}${j?"":" g"}">${j?"":head}${item(r.items[j],j)}</tr>`).join("")}).join("")||'<tr><td colspan="7" class="meta" style="padding:20px;text-align:center">ไม่พบข้อมูล</td></tr>';
  const all=data.flatMap(r=>r.items),rc=re=>data.filter(r=>re.test(r.status||"")).length,ra=re=>n2(data.filter(r=>re.test(r.status||"")).reduce((s,r)=>s+(r.aoi?r.aoi.km2:0),0))+" ตร.กม.";
- const cs=[["Request ทั้งหมด",data.length],["Activated",rc(/^activ/i),"พื้นที่ "+ra(/^activ/i)],["COMPLETED_OK",rc(/^complet/i),"พื้นที่ "+ra(/^complet/i)],["CANCELLED",rc(/^cancel/i)],["programmingItem",all.length],["พื้นที่ AOI รวม (ตร.กม.)",n2(data.reduce((s,r)=>s+(r.aoi?r.aoi.km2:0),0))]];
+ const cs=[["Request ทั้งหมด",data.length],["ACTIVATED",rc(/^activ/i),"พื้นที่ "+ra(/^activ/i)],["COMPLETED_OK",rc(/^complet/i),"พื้นที่ "+ra(/^complet/i)],["CANCELLED",rc(/^cancel/i)],["programmingItem",all.length],["พื้นที่ AOI รวม (ตร.กม.)",n2(data.reduce((s,r)=>s+(r.aoi?r.aoi.km2:0),0))]];
  $("cards").innerHTML=cs.map(c=>`<div class="c"><b>${c[1]}</b><span>${c[0]}</span>${c[2]?`<em>${c[2]}</em>`:""}</div>`).join("");
  const mcur=$("mf").value;$("mf").innerHTML='<option value="">ทุกสถานะ</option>'+stList(false).map(x=>`<option ${eq(x,mcur)?"selected":""}>${x}</option>`).join("");
  $("side").innerHTML=data.map((r,i)=>!vis(r)?"":`<div class="si ${cur==i?"on":""}" onclick="show('${i}:m')"><b class="mono">${r.id}</b><div class="it"><span class="st" style="background:${sc(r.status)};color:${fg(r.status)}">${r.status||"-"}</span> <span>${r.items.length} แนว</span></div>${r.items.map((it,j)=>`<div class="it" onclick="event.stopPropagation();show('${i}:${j}')"><i style="background:${sc(it.status)}"></i>แนวที่ ${j} · ${it.status||"-"}</div>`).join("")}</div>`).join("")||'<div class="meta">ไม่มีคำสั่งในสถานะนี้</div>';
@@ -280,7 +280,7 @@ function show(key){pending=false;go(2);street();selKey=key;const[i,j]=key.split(
  $("mt").textContent="แสดง: "+r.id+(j==="m"?" (ทุกแนว)":" — แนวที่ "+(+j))+" · ทุกคำสั่งแสดงอยู่บนแผนที่เดียวกัน";render()}
 function showAll(){pending=false;go(2);street();selKey=null;draw(null,null);const n=data.filter(vis).length;$("mt").textContent="แสดง "+n+" คำสั่ง"+($("mf").value?" · สถานะ "+$("mf").value:" · ทุกสถานะ")+" บน Google Street";render()}
 function mapFilter(){showAll()}
-function upsertXml(name,text,o){o=o||{};const row=P(text,name);const i=data.findIndex(r=>r.file===name);if(i>=0)data[i]=row;else data.push(row);if(o.local){try{const m=JSON.parse(localStorage.getItem("irs_xml")||"{}");m[name]=text;localStorage.setItem("irs_xml",JSON.stringify(m))}catch(_){if(!o.quiet)alert("พื้นที่เก็บในเบราว์เซอร์เต็ม — ไฟล์นี้จะไม่ค้างหลังรีโหลด (ถ้าเปิดแชร์ไว้ จะยังอยู่บนเซิร์ฟเวอร์)")}}if(o.sync&&window.syncSet)syncSet("xml",name,text)}
+function upsertXml(name,text,o){o=o||{};const row=P(text,name);const i=data.findIndex(r=>r.file===name||(row.id&&r.id===row.id));if(i>=0){const old=data[i].file;data[i]=row;if(old!==name&&old!==SAMPLE_NAME){try{const m0=JSON.parse(localStorage.getItem("irs_xml")||"{}");delete m0[old];localStorage.setItem("irs_xml",JSON.stringify(m0))}catch(_){}if(o.sync&&window.syncSet)syncSet("xml",old,"__DELETED__")}}else data.push(row);if(o.local){try{const m=JSON.parse(localStorage.getItem("irs_xml")||"{}");m[name]=text;localStorage.setItem("irs_xml",JSON.stringify(m))}catch(_){if(!o.quiet)alert("พื้นที่เก็บในเบราว์เซอร์เต็ม — ไฟล์นี้จะไม่ค้างหลังรีโหลด (ถ้าเปิดแชร์ไว้ จะยังอยู่บนเซิร์ฟเวอร์)")}}if(o.sync&&window.syncSet)syncSet("xml",name,text)}
 function load(files){[...files].forEach(f=>{const rd=new FileReader();rd.onload=()=>{try{upsertXml(f.name,rd.result,{local:true,sync:true});$("q").value="";render();applyDef();render();show(data.findIndex(r=>r.file===f.name)+":m")}catch(e){alert(e.message)}};rd.readAsText(f)})}
 function delXml(i){const r=data[i];if(!r||r.file===SAMPLE_NAME)return;
  if(!confirm("ลบไฟล์ XML นี้ออกจากระบบ?\n\n"+r.file+"\n\n(ถ้าเปิดแชร์ไว้ เพื่อนทุกคนจะเห็นว่าไฟล์นี้ถูกลบด้วย)"))return;
