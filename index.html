@@ -307,7 +307,7 @@ const REQS=["Reseller","General","Defense","GISTDA"],OT="__other__",OTL="อื�
 APPS=["กฎหมาย, ประกอบสำนวน, พยานเอกสาร","การเกษตร, การใช้ที่ดิน","การทำแผนที่, เส้นทางคมนาคม, ผังเมือง","การศึกษา, ประกอบการฝึกอบรม","ข้อมูลแผนที่ฐาน (Base map)","ความมั่นคงของชาติ","ทรัพยากรชายฝั่ง","ทรัพยากรน้ำ","ธรณีวิทยา","ประชาสัมพันธ์, ของที่ระลึก","ป่าไม้","ภัยธรรมชาติและสิ่งแวดล้อม","ส่วนบุคคล"],
 ea=v=>String(v==null?"":v).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
 function saveEd(r){const v={s:r.status,it:r.items.map(x=>x.status),m:r.meta||{}};try{const e=JSON.parse(localStorage.getItem("irs_status")||"{}");e[r.id]=v;localStorage.setItem("irs_status",JSON.stringify(e))}catch(_){}window.syncSet&&syncSet("status",r.id,v)}
-const PFX=[[/^WC/i,"World Collection"],[/^EG/i,"Earth Gallery"],[/^IQ/i,"CAL/VAL"]];
+const PFX=[[/^WC/i,"World Collection"],[/^EG/i,"Earth Gallery"],[/^IQ/i,"CAL/VAL"],[/^THA/i,"All Thailand"]];
 function rule(r){const x=PFX.find(p=>p[0].test((r.id||"").trim()));return x?{req:"MGS",proj:x[1],app:x[1]}:null}
 function ef(r,k){const m=r.meta||{};if(m[k])return m[k];const u=rule(r);return u?u[k]:""}
 const DIS=/น้ำท่วม|อุทกภัย|น้ำป่า|น้ำหลาก|ดินถล่ม|ดินโคลน|แผ่นดินถล่ม|แผ่นดินไหว|สึนามิ|ภัยพิบัติ|ภัยธรรมชาติ|ภัยแล้ง|ภัยหนาว|วาตภัย|พายุ|ไฟป่า|หมอกควัน|ฝุ่น|ไฟไหม้|ลูกเห็บ|flood|landslide|earthquake|tsunami|wildfire|disaster|typhoon|cyclone|drought/i,DISAPP="ภัยธรรมชาติและสิ่งแวดล้อม";
@@ -316,7 +316,7 @@ function setM(i,k,v){const r=data[i];r.meta=r.meta||{};r.meta[k]=v;
  if(k==="proj"&&DIS.test(v)&&((!r.meta.app&&!rule(r))||r.meta.appAuto)){r.meta.app=DISAPP;r.meta.appAuto=1}
  saveEd(r);render()}
 const OPTS={req:[["Reseller","🤝","#2563eb"],["General","👥","#0d9488"],["Defense","🛡️","#15803d"],["GISTDA","🛰️","#ea580c"],["MGS","🏢","#4f46e5"]],
-app:[["กฎหมาย, ประกอบสำนวน, พยานเอกสาร","⚖️","#7c3aed"],["การเกษตร, การใช้ที่ดิน","🌾","#65a30d"],["การทำแผนที่, เส้นทางคมนาคม, ผังเมือง","🗺️","#0891b2"],["การศึกษา, ประกอบการฝึกอบรม","🎓","#2563eb"],["ข้อมูลแผนที่ฐาน (Base map)","🧭","#475569"],["ความมั่นคงของชาติ","🛡️","#b91c1c"],["ทรัพยากรชายฝั่ง","🌊","#0ea5e9"],["ทรัพยากรน้ำ","💧","#0284c7"],["ธรณีวิทยา","🪨","#a16207"],["ประชาสัมพันธ์, ของที่ระลึก","📣","#db2777"],["ป่าไม้","🌲","#15803d"],["ภัยธรรมชาติและสิ่งแวดล้อม","🌪️","#ea580c"],["ส่วนบุคคล","👤","#6366f1"],["World Collection","🌍","#0f9d8a"],["Earth Gallery","🖼️","#d97706"],["CAL/VAL","🎯","#64748b"]]};
+app:[["กฎหมาย, ประกอบสำนวน, พยานเอกสาร","⚖️","#7c3aed"],["การเกษตร, การใช้ที่ดิน","🌾","#65a30d"],["การทำแผนที่, เส้นทางคมนาคม, ผังเมือง","🗺️","#0891b2"],["การศึกษา, ประกอบการฝึกอบรม","🎓","#2563eb"],["ข้อมูลแผนที่ฐาน (Base map)","🧭","#475569"],["ความมั่นคงของชาติ","🛡️","#b91c1c"],["ทรัพยากรชายฝั่ง","🌊","#0ea5e9"],["ทรัพยากรน้ำ","💧","#0284c7"],["ธรณีวิทยา","🪨","#a16207"],["ประชาสัมพันธ์, ของที่ระลึก","📣","#db2777"],["ป่าไม้","🌲","#15803d"],["ภัยธรรมชาติและสิ่งแวดล้อม","🌪️","#ea580c"],["ส่วนบุคคล","👤","#6366f1"],["World Collection","🌍","#0f9d8a"],["Earth Gallery","🖼️","#d97706"],["CAL/VAL","🎯","#64748b"],["All Thailand","📍","#e11d48"]]};
 const OTH=["✏️","#64748b"],TTL={req:"เลือกผู้ขอใช้ข้อมูล",app:"เลือก Application"},oo=(k,t)=>(OPTS[k].find(x=>x[0]===t)||[t,"","#94a3b8"]);
 function metaSel(i,k){const m=data[i].meta||{},v=ef(data[i],k),d=window.RO?" disabled":"";let b;
  if(!v)b=`<button${d} class="pill e" onclick="pickOpen(event,${i},'${k}')">เลือก…<span class="ar">▾</span></button>`;
