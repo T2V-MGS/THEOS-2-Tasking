@@ -269,7 +269,7 @@ function initMap(){map=L.map("map").setView([13.75,100.5],6);
  map.on("mouseout",function(){document.getElementById("coordBox").textContent="Lat: -   Lng: -"})}
 let pending=true;
 function go(n){$("pg1").hidden=n!==1;$("pg2").hidden=n!==2;$("pg3").hidden=n!==3;$("t3").classList.toggle("on",n===3);if(n===3)dash();$("t1").classList.toggle("on",n===1);$("t2").classList.toggle("on",n===2);
- if(n===2){map.invalidateSize();if(window.orbitRedraw)orbitRedraw();if(pending){pending=false;selKey?show(selKey):showAll()}}else window.scrollTo(0,0)}
+ if(n===2){map.invalidateSize();if(window.orbitRedraw)orbitRedraw();if(pending){pending=false;window._nf=true;try{selKey?show(selKey):showAll()}finally{window._nf=false}}}else window.scrollTo(0,0)}
 function street(){Object.values(layers).forEach(l=>map.removeLayer(l));layers["Google Street"].addTo(map)}
 function draw(si,sj){group.clearLayers();const all=[],sb=[];
  data.forEach((r,i)=>{if(!vis(r))return;const isR=String(i)===si,whole=isR&&sj==="m";
@@ -277,7 +277,7 @@ function draw(si,sj){group.clearLayers();const all=[],sb=[];
   r.items.forEach((it,k)=>{if(!it.aoi)return;const hit=whole||(isR&&String(k)===sj),c=sc(it.status);
    const m=L.polygon(it.aoi.pts,{color:c,weight:hit?3:1.5,fillColor:c,fillOpacity:hit?.45:.22}).bindPopup(`<b>${r.id}</b><br>แนวที่ ${k} · <b style="color:${c}">${it.status||"-"}</b><br>${n2(it.aoi.km2)} ตร.กม.`).bindTooltip("แนวที่ "+k,{sticky:true}).addTo(group);
    m.on("click",()=>{selKey=i+":"+k;render()});all.push(m.getBounds());if(hit&&isR)sb.push(m.getBounds())})});
- const b=(sb.length?sb:all).reduce((a,x)=>a.extend(x),L.latLngBounds([]));if(b.isValid())map.fitBounds(b,{padding:[30,30],maxZoom:17})}
+ const b=(sb.length?sb:all).reduce((a,x)=>a.extend(x),L.latLngBounds([]));if(b.isValid()&&sb.length&&!window._nf)map.fitBounds(b,{padding:[30,30],maxZoom:17})}
 function show(key){pending=false;go(2);street();selKey=key;const[i,j]=key.split(":"),r=data[i];if(!vis(r)){$("mf").value=r.status||""}draw(i,j);
  $("mt").textContent="แสดง: "+r.id+(j==="m"?" (ทุกแนว)":" — แนวที่ "+(+j))+" · ทุกคำสั่งแสดงอยู่บนแผนที่เดียวกัน";render()}
 function showAll(){pending=false;go(2);street();selKey=null;draw(null,null);const n=data.filter(vis).length;$("mt").textContent="แสดง "+n+" คำสั่ง"+($("mf").value?" · สถานะ "+$("mf").value:" · ทุกสถานะ")+" บน Google Street";render()}
@@ -348,7 +348,7 @@ function colSet(i,on){let h=colApply().filter(x=>x!==i);if(!on)h.push(i);try{loc
 $("colbtn").onclick=e=>{e.stopPropagation();const h=colApply();$("colpop").innerHTML=COLN.map((n,i)=>`<label><input type="checkbox" ${h.includes(i)?"":"checked"} onchange="colSet(${i},this.checked)"> ${n}</label>`).join("");$("colpop").hidden=!$("colpop").hidden};
 document.addEventListener("click",e=>{if(!e.target.closest("#colpop"))$("colpop").hidden=true});colApply();
 $("sf").addEventListener("change",()=>{window._udS=true});$("mf").addEventListener("change",()=>{window._udM=true});
-document.addEventListener("focusout",()=>{setTimeout(()=>{const a=document.activeElement;if(window._rp&&!(a&&a.closest&&a.closest("#tb"))){window._rp=false;render();if(!$("pg2").hidden){selKey?show(selKey):showAll()}}},250)});
+document.addEventListener("focusout",()=>{setTimeout(()=>{const a=document.activeElement;if(window._rp&&!(a&&a.closest&&a.closest("#tb"))){window._rp=false;render();if(!$("pg2").hidden){window._nf=true;try{selKey?show(selKey):showAll()}finally{window._nf=false}}}},250)});
 initMap();data.push(P(SAMPLE,SAMPLE_NAME));try{const m=JSON.parse(localStorage.getItem("irs_xml")||"{}");for(const n in m){try{upsertXml(n,m[n])}catch(_){}}}catch(_){}selKey=null;render();applyDef();applyMapDef();render();go(1);
 
 // ---- สลับแผงข้าง ----
@@ -469,7 +469,7 @@ function draw(fit){
   }else{
     for(const o in idx){if(hiddenOrbits.has(+o))continue;const e=idx[o];if(e.main)addFC(e.main,data[e.main],color(+o))}
   }
-  if(fit&&grp.getLayers().length&&window.orbitTabActive&&window.orbitTabActive()){go(2);map.invalidateSize();map.fitBounds(grp.getBounds(),{padding:[30,30]})}
+  if(fit&&grp.getLayers().length&&window.orbitTabActive&&window.orbitTabActive()){go(2);map.invalidateSize()}
 }
 
 function renderOrbs(){
@@ -615,7 +615,7 @@ function apply(d){
   const ae=document.activeElement;
   if(ae&&ae.closest&&ae.closest("#tb")&&/^(TEXTAREA|INPUT|SELECT)$/.test(ae.tagName)){window._rp=true;return}
   render();
-  if(!$("pg2").hidden){selKey?show(selKey):showAll()}
+  if(!$("pg2").hidden){window._nf=true;try{selKey?show(selKey):showAll()}finally{window._nf=false}}
 }
 function pushMissing(d){
   const sv=k=>(d&&d[k])||{};
