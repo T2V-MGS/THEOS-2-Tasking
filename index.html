@@ -31,7 +31,7 @@ td{padding:10px 12px;border-bottom:1px solid var(--bd);vertical-align:top}
 tr.sel>td{background:rgba(37,99,235,.07)}
 .rid{color:var(--ac);font-weight:600;text-decoration:none}.rid:hover{text-decoration:underline}tbody>tr{cursor:pointer}.mono{font-family:ui-monospace,Consolas,monospace;font-size:12px;word-break:break-all}
 .st{display:inline-block;padding:2px 9px;border-radius:99px;font-size:11px;font-weight:600;color:#fff;background:var(--mu)}
-.st.REJECTED,.st.FAILED{background:var(--bad)}.st.DELETED{background:#FF3300}.st.CANCELLED{background:#FF99CC;color:#5b1a3a}.st.COMPLETED,.st.ACQUIRED,.st.ACCEPTED,.st.PLANNED{background:var(--ok)}.st.PENDING,.st.INPROGRESS,.st.PROGRAMMED,.st.ACTIVE{background:var(--warn)}
+.st.REJECTED,.st.FAILED{background:var(--bad)}.st.DELETED{background:#FF3300}.st.EXPIRED{background:#78716c}.st.CANCELLED{background:#FF99CC;color:#5b1a3a}.st.COMPLETED,.st.ACQUIRED,.st.ACCEPTED,.st.PLANNED{background:var(--ok)}.st.PENDING,.st.INPROGRESS,.st.PROGRAMMED,.st.ACTIVE{background:var(--warn)}
 tr.g>td{border-top:2px solid var(--bd)}select.ed{border:0;color:#fff;font:inherit;font-weight:600;font-size:11px;border-radius:99px;padding:3px 6px;cursor:pointer}select.ed option{color:#000;background:#fff}.sub{width:100%;font-size:12px}.sub td{padding:5px 6px;border:0;border-top:1px dashed var(--bd)}.sub tr:first-child td{border-top:0}
 .meta{color:var(--mu);font-size:11px;display:block}
 .meta.fn{color:#a8b0bf}@media(prefers-color-scheme:dark){.meta.fn{color:#5b6880}}
@@ -219,10 +219,10 @@ function parse(xml,file){const d=new DOMParser().parseFromString(xml,"applicatio
  aoi:kids(r,"areaOfInterest").map(geo).filter(Boolean)[0]||null,
  items:kids(r,"programmingItem").map(it=>({aoi:kids(it,"areaOfInterest").map(geo).filter(Boolean)[0]||null,status:norm(txt(it,"status")),
   acq:(kids(it,"acquisitionsList")[0]||{children:[]}).children.length}))}}
-const KC={DELETED:"#FF3300",CANCELLED:"#FF99CC",REJECTED:"#9f1239",FAILED:"#be123c",COMPLETED:"#16a34a",COMPLETED_OK:"#16a34a",ACQUIRED:"#15803d",ACCEPTED:"#0d9488",PLANNED:"#0891b2",PENDING:"#d97706",INPROGRESS:"#ea580c",PROGRAMMED:"#7c3aed",ACTIVE:"#65a30d",ACTIVATED:"#f97316",CREATED:"#facc15"},PAL=["#db2777","#0ea5e9","#a16207","#4f46e5","#059669","#c026d3"];
+const KC={EXPIRED:"#78716c",DELETED:"#FF3300",CANCELLED:"#FF99CC",REJECTED:"#9f1239",FAILED:"#be123c",COMPLETED:"#16a34a",COMPLETED_OK:"#16a34a",ACQUIRED:"#15803d",ACCEPTED:"#0d9488",PLANNED:"#0891b2",PENDING:"#d97706",INPROGRESS:"#ea580c",PROGRAMMED:"#7c3aed",ACTIVE:"#65a30d",ACTIVATED:"#f97316",CREATED:"#facc15"},PAL=["#db2777","#0ea5e9","#a16207","#4f46e5","#059669","#c026d3"];
 const fg=v=>/^created$/i.test(v||"")?"#3b2f00":"#fff";
 function sc(st){if(!st)return"#667085";if(KC[st.toUpperCase()])return KC[st.toUpperCase()];let h=0;for(const c of st)h=(h*31+c.charCodeAt(0))>>>0;return PAL[h%PAL.length]}
-const BASE=["ACTIVATED","COMPLETED_OK","CANCELLED"],norm=v=>/^activated$/i.test(v||"")?"ACTIVATED":/^completed$/i.test(v||"")?"COMPLETED_OK":/^cancell?ed$/i.test(v||"")?"CANCELLED":v,eq=(a,b)=>String(a||"").toUpperCase()===String(b||"").toUpperCase();
+const BASE=["ACTIVATED","COMPLETED_OK","CANCELLED","EXPIRED"],norm=v=>/^activated$/i.test(v||"")?"ACTIVATED":/^expired$/i.test(v||"")?"EXPIRED":/^completed$/i.test(v||"")?"COMPLETED_OK":/^cancell?ed$/i.test(v||"")?"CANCELLED":v,eq=(a,b)=>String(a||"").toUpperCase()===String(b||"").toUpperCase();
 function applyEd(r){try{const e=JSON.parse(localStorage.getItem("irs_status")||"{}")[r.id];if(e){if(e.m)r.meta=e.m;if(e.s!=null)r.status=norm(e.s);r.items.forEach((x,k)=>{if(e.it&&e.it[k]!=null)x.status=norm(e.it[k])})}}catch(_){}}
 const P=(x,f)=>{const r=parse(x,f);applyEd(r);return r};
 function setS(i,j,v){const r=data[i];if(j==="m")r.status=v;else r.items[j].status=v;
