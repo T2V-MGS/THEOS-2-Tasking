@@ -65,7 +65,7 @@ thead th[data-k]:hover{filter:brightness(1.12)}
 @media(max-width:800px){#mg{grid-template-columns:1fr}#sw{max-height:260px;min-height:0}}
 /* ---- ปฏิทิน Orbit (กำหนดขอบเขตเฉพาะในแผง) ---- */
 #orbpanel .btn{padding:5px 10px}
-#ouplist .x{display:none}
+#ouplist .x{display:inline-flex;align-items:center;padding:3px 5px;border-radius:6px;line-height:0}#ouplist .x:hover{background:#fee2e2}#ouplist .x svg{width:16px;height:16px}
 #orbpanel .nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
 #orbpanel .nav b{font-size:16px}
 #orbpanel button,#orbpanel .btn{font:inherit;font-size:13px;background:var(--panel);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:5px 10px;cursor:pointer}
@@ -382,7 +382,13 @@ const VCOL = {"10":"#FF00FF","20":"#FFFF00","30":"#2563eb"};
 const LS="theos2_orbit_uploads_v1";
 let uploads={};
 try{uploads=JSON.parse(localStorage.getItem(LS)||"{}")}catch(e){uploads={}}
-const saveUp=()=>{try{localStorage.setItem(LS,JSON.stringify(uploads))}catch(e){alert("พื้นที่เก็บข้อมูลในเบราว์เซอร์เต็ม")}};
+/* เก็บ geojson ใน IndexedDB (จุได้เป็นร้อย MB) แทน localStorage (~5 MB) เพื่อไม่ให้พื้นที่เต็ม */
+const idbP=new Promise((res,rej)=>{try{const q=indexedDB.open("theos2_store",1);q.onupgradeneeded=()=>q.result.createObjectStore("kv");q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)}catch(e){rej(e)}});
+const idbGet=k=>idbP.then(db=>new Promise((res,rej)=>{const r=db.transaction("kv").objectStore("kv").get(k);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)}));
+const idbSet=(k,v)=>idbP.then(db=>new Promise((res,rej)=>{const t=db.transaction("kv","readwrite");t.objectStore("kv").put(v,k);t.oncomplete=()=>res();t.onerror=()=>rej(t.error);t.onabort=()=>rej(t.error)}));
+let fullWarned=false;
+const saveUp=()=>{idbSet(LS,uploads).then(()=>{try{localStorage.removeItem(LS)}catch(_){}}).catch(()=>{try{localStorage.setItem(LS,JSON.stringify(uploads))}catch(e){if(!fullWarned){fullWarned=true;console.warn("เก็บในเบราว์เซอร์ไม่ได้ — ข้อมูลยังอยู่บนเซิร์ฟเวอร์แชร์")}}})};
+idbGet(LS).then(v=>{let ch=false;if(v)for(const k in v)if(!(k in uploads)){uploads[k]=v[k];ch=true}if(ch)refresh();if(localStorage.getItem(LS))saveUp()}).catch(()=>{});
 const allData=()=>Object.assign({},BUILTIN,uploads);
 
 function parseId(id){const m=/^orbit[_\- ]?(\d+)(?:[_\- ](.+))?$/i.exec(id);return m?{orbit:+m[1],variant:m[2]||null}:null;}
@@ -486,8 +492,10 @@ function renderUploads(){
   Object.keys(uploads).sort().forEach(id=>{
     const p=parseId(id);const d=document.createElement("div");d.className="lay";
     d.innerHTML=`<span>📄 ${id}</span><span class="mut">${p?"":"(ชื่อไม่ตรงรูปแบบ)"}</span>`;
-    const x=document.createElement("button");x.className="x";x.textContent="✕";x.title="ลบ";
-    x.onclick=()=>{delete uploads[id];saveUp();refresh()};d.appendChild(x);b.appendChild(d);
+    const x=document.createElement("button");x.className="x";x.title="ลบไฟล์นี้";x.setAttribute("aria-label","ลบ "+id);
+    x.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>';
+    if(window.RO)x.style.display="none";
+    x.onclick=()=>{if(!confirm("ลบไฟล์ GeoJSON นี้?\n\n"+id+"\n\n(ถ้าเปิดแชร์ไว้ เพื่อนทุกคนจะเห็นว่าไฟล์นี้ถูกลบด้วย)"))return;delete uploads[id];saveUp();window.syncSet&&syncSet("geo",id,"__DELETED__");refresh()};d.appendChild(x);b.appendChild(d);
   });
 }
 
@@ -524,7 +532,7 @@ const od=E("odrop");
 ["dragleave","drop"].forEach(ev=>od.addEventListener(ev,e=>{e.preventDefault();od.classList.remove("hv")}));
 od.addEventListener("drop",e=>handleFiles([...e.dataTransfer.files]));
 window.orbitRedraw=()=>draw(false);
-window.orbitSetUploads=g=>{Object.assign(uploads,g);saveUp();refresh()};
+window.orbitSetUploads=g=>{for(const k in g){if(g[k]==="__DELETED__")delete uploads[k];else uploads[k]=g[k]}saveUp();refresh()};
 window.orbitGetUploads=()=>uploads;
 sel={y:vy,m:vm,d:now.getDate()};
 refresh();
@@ -632,7 +640,7 @@ async function pull(){
     const h=JSON.stringify(d);
     if(h!==last){last=h;apply(d)}
     if(!RO)pushMissing(d);
-    const liveX=Object.keys(d.xml||{}).filter(n=>d.xml[n]!=="__DELETED__");srv={xml:liveX.length,geo:Object.keys(d.geo||{}).length,status:Object.keys(d.status||{}).length};
+    const liveX=Object.keys(d.xml||{}).filter(n=>d.xml[n]!=="__DELETED__");srv={xml:liveX.length,geo:Object.keys(d.geo||{}).filter(n=>d.geo[n]!=="__DELETED__").length,status:Object.keys(d.status||{}).length};
     const lc={xml:Object.keys(lj("irs_xml")).length,status:Object.keys(lj("irs_status")).length,geo:Object.keys(window.orbitGetUploads?orbitGetUploads():{}).length};
     const hh=new Date().toLocaleTimeString("th-TH");
     setB((RO?"โหมดดูอย่างเดียว":"แชร์ร่วมกัน")+": เชื่อมต่อแล้ว · เซิร์ฟเวอร์ XML "+srv.xml+" / geojson "+srv.geo+" / สถานะ "+srv.status+" · "+hh,srvVer>=2?"var(--ok)":"var(--bad)",
