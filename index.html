@@ -215,15 +215,17 @@ function geo(a){const r=rings(a)[0];if(!r)return null;const pts=r.pts,n=pts.leng
  const c=[pts.slice(0,n).reduce((s,p)=>s+p[0],0)/n,pts.slice(0,n).reduce((s,p)=>s+p[1],0)/n];return{pts,n,c,km2:area(pts),rad:r.rad}}
 function parse(xml,file){const d=new DOMParser().parseFromString(xml,"application/xml");
  if(d.querySelector("parsererror"))throw new Error("XML ไม่ถูกต้อง: "+file);const r=d.documentElement;
- return{file,meta:{},id:txt(r,"requestIdentifier"),name:txt(r,"progrName"),status:norm(txt(r,"progrStatus")),
+ return{file,meta:{},id:txt(r,"requestIdentifier"),name:txt(r,"progrName"),status:norm(txt(r,"progrStatus")),xs:norm(txt(r,"progrStatus")),
  aoi:kids(r,"areaOfInterest").map(geo).filter(Boolean)[0]||null,
- items:kids(r,"programmingItem").map(it=>({aoi:kids(it,"areaOfInterest").map(geo).filter(Boolean)[0]||null,status:norm(txt(it,"status")),
+ items:kids(r,"programmingItem").map(it=>({aoi:kids(it,"areaOfInterest").map(geo).filter(Boolean)[0]||null,status:norm(txt(it,"status")),xs:norm(txt(it,"status")),
   acq:(kids(it,"acquisitionsList")[0]||{children:[]}).children.length}))}}
 const KC={EXPIRED:"#78716c",DELETED:"#FF3300",CANCELLED:"#FF99CC",REJECTED:"#9f1239",FAILED:"#be123c",COMPLETED:"#16a34a",COMPLETED_OK:"#16a34a",ACQUIRED:"#15803d",ACCEPTED:"#0d9488",PLANNED:"#0891b2",PENDING:"#d97706",INPROGRESS:"#ea580c",PROGRAMMED:"#7c3aed",ACTIVE:"#65a30d",ACTIVATED:"#f97316",CREATED:"#facc15"},PAL=["#db2777","#0ea5e9","#a16207","#4f46e5","#059669","#c026d3"];
 const fg=v=>/^created$/i.test(v||"")?"#3b2f00":"#fff";
 function sc(st){if(!st)return"#667085";if(KC[st.toUpperCase()])return KC[st.toUpperCase()];let h=0;for(const c of st)h=(h*31+c.charCodeAt(0))>>>0;return PAL[h%PAL.length]}
 const BASE=["ACTIVATED","COMPLETED_OK","CANCELLED","EXPIRED"],norm=v=>/^activated$/i.test(v||"")?"ACTIVATED":/^expired$/i.test(v||"")?"EXPIRED":/^completed$/i.test(v||"")?"COMPLETED_OK":/^cancell?ed$/i.test(v||"")?"CANCELLED":v,eq=(a,b)=>String(a||"").toUpperCase()===String(b||"").toUpperCase();
-function applyEd(r){try{const e=JSON.parse(localStorage.getItem("irs_status")||"{}")[r.id];if(e){if(e.m)r.meta=e.m;if(e.s!=null)r.status=norm(e.s);r.items.forEach((x,k)=>{if(e.it&&e.it[k]!=null)x.status=norm(e.it[k])})}}catch(_){}}
+function applyEd(r){try{const e=JSON.parse(localStorage.getItem("irs_status")||"{}")[r.id];if(e){if(e.m)r.meta=e.m;const b=e.b;
+ if(b&&e.s!=null&&eq(b.s,r.xs))r.status=norm(e.s);
+ r.items.forEach((x,k)=>{if(b&&b.it&&e.it&&e.it[k]!=null&&eq(b.it[k],x.xs))x.status=norm(e.it[k])})}}catch(_){}}
 const P=(x,f)=>{const r=parse(x,f);applyEd(r);return r};
 function setS(i,j,v){const r=data[i];if(j==="m")r.status=v;else r.items[j].status=v;
  saveEd(r);pending=true;render()}
@@ -282,8 +284,9 @@ function show(key){pending=false;go(2);street();selKey=key;const[i,j]=key.split(
  $("mt").textContent="แสดง: "+r.id+(j==="m"?" (ทุกแนว)":" — แนวที่ "+(+j))+" · ทุกคำสั่งแสดงอยู่บนแผนที่เดียวกัน";render()}
 function showAll(){pending=false;go(2);street();selKey=null;draw(null,null);const n=data.filter(vis).length;$("mt").textContent="แสดง "+n+" คำสั่ง"+($("mf").value?" · สถานะ "+$("mf").value:" · ทุกสถานะ")+" บน Google Street";render()}
 function mapFilter(){showAll()}
-function upsertXml(name,text,o){o=o||{};const row=P(text,name);const i=data.findIndex(r=>r.file===name||(row.id&&r.id===row.id));if(i>=0){const old=data[i].file;data[i]=row;if(old!==name&&old!==SAMPLE_NAME){try{const m0=JSON.parse(localStorage.getItem("irs_xml")||"{}");delete m0[old];localStorage.setItem("irs_xml",JSON.stringify(m0))}catch(_){}if(o.sync&&window.syncSet)syncSet("xml",old,"__DELETED__")}}else data.push(row);if(o.local){try{const m=JSON.parse(localStorage.getItem("irs_xml")||"{}");m[name]=text;localStorage.setItem("irs_xml",JSON.stringify(m))}catch(_){if(!o.quiet)alert("พื้นที่เก็บในเบราว์เซอร์เต็ม — ไฟล์นี้จะไม่ค้างหลังรีโหลด (ถ้าเปิดแชร์ไว้ จะยังอยู่บนเซิร์ฟเวอร์)")}}if(o.sync&&window.syncSet)syncSet("xml",name,text)}
-function load(files){[...files].forEach(f=>{const rd=new FileReader();rd.onload=()=>{try{upsertXml(f.name,rd.result,{local:true,sync:true});$("q").value="";render();applyDef();render();show(data.findIndex(r=>r.file===f.name)+":m")}catch(e){alert(e.message)}};rd.readAsText(f)})}
+function upsertXml(name,text,o){o=o||{};const row=P(text,name);const i=data.findIndex(r=>r.file===name||(row.id&&r.id===row.id));if(i>=0){const old=data[i].file;data[i]=row;if(old!==name&&old!==SAMPLE_NAME){try{const m0=JSON.parse(localStorage.getItem("irs_xml")||"{}");delete m0[old];localStorage.setItem("irs_xml",JSON.stringify(m0))}catch(_){}if(o.sync&&window.syncSet)syncSet("xml",old,"__DELETED__")}}else data.push(row);if(o.local){try{const m=JSON.parse(localStorage.getItem("irs_xml")||"{}");m[name]=text;localStorage.setItem("irs_xml",JSON.stringify(m))}catch(_){if(!o.quiet)alert("พื้นที่เก็บในเบราว์เซอร์เต็ม — ไฟล์นี้จะไม่ค้างหลังรีโหลด (ถ้าเปิดแชร์ไว้ จะยังอยู่บนเซิร์ฟเวอร์)")}}if(o.fresh){const r=data.find(x=>x.file===name);if(r){r.status=r.xs;r.items.forEach(x=>x.status=x.xs);saveEd(r)}}
+if(o.sync&&window.syncSet)syncSet("xml",name,text)}
+function load(files){[...files].forEach(f=>{const rd=new FileReader();rd.onload=()=>{try{upsertXml(f.name,rd.result,{local:true,sync:true,fresh:true});$("q").value="";render();applyDef();render();show(data.findIndex(r=>r.file===f.name)+":m")}catch(e){alert(e.message)}};rd.readAsText(f)})}
 function delXml(i){const r=data[i];if(!r||r.file===SAMPLE_NAME)return;
  if(!confirm("ลบไฟล์ XML นี้ออกจากระบบ?\n\n"+r.file+"\n\n(ถ้าเปิดแชร์ไว้ เพื่อนทุกคนจะเห็นว่าไฟล์นี้ถูกลบด้วย)"))return;
  const name=r.file;data.splice(i,1);
@@ -306,7 +309,7 @@ document.querySelectorAll("th[data-k]").forEach(th=>th.onclick=()=>{sortD=sortK=
 const REQS=["Reseller","General","Defense","GISTDA"],OT="__other__",OTL="อื่นๆ (กรอกเอง)",
 APPS=["กฎหมาย, ประกอบสำนวน, พยานเอกสาร","การเกษตร, การใช้ที่ดิน","การทำแผนที่, เส้นทางคมนาคม, ผังเมือง","การศึกษา, ประกอบการฝึกอบรม","ข้อมูลแผนที่ฐาน (Base map)","ความมั่นคงของชาติ","ทรัพยากรชายฝั่ง","ทรัพยากรน้ำ","ธรณีวิทยา","ประชาสัมพันธ์, ของที่ระลึก","ป่าไม้","ภัยธรรมชาติและสิ่งแวดล้อม","ส่วนบุคคล"],
 ea=v=>String(v==null?"":v).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
-function saveEd(r){const v={s:r.status,it:r.items.map(x=>x.status),m:r.meta||{}};try{const e=JSON.parse(localStorage.getItem("irs_status")||"{}");e[r.id]=v;localStorage.setItem("irs_status",JSON.stringify(e))}catch(_){}window.syncSet&&syncSet("status",r.id,v)}
+function saveEd(r){const v={s:r.status,it:r.items.map(x=>x.status),m:r.meta||{},b:{s:r.xs,it:r.items.map(x=>x.xs)}};try{const e=JSON.parse(localStorage.getItem("irs_status")||"{}");e[r.id]=v;localStorage.setItem("irs_status",JSON.stringify(e))}catch(_){}window.syncSet&&syncSet("status",r.id,v)}
 const PFX=[[/^WC/i,"World Collection"],[/^EG/i,"Earth Gallery"],[/^IQ/i,"CAL/VAL"],[/^THA/i,"All Thailand"]];
 function rule(r){const x=PFX.find(p=>p[0].test((r.id||"").trim()));return x?{req:"MGS",proj:x[1],app:x[1]}:null}
 function ef(r,k){const m=r.meta||{};if(m[k])return m[k];const u=rule(r);return u?u[k]:""}
