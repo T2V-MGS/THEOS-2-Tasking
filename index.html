@@ -223,9 +223,7 @@ const KC={EXPIRED:"#78716c",DELETED:"#FF3300",CANCELLED:"#FF99CC",REJECTED:"#9f1
 const fg=v=>/^created$/i.test(v||"")?"#3b2f00":"#fff";
 function sc(st){if(!st)return"#667085";if(KC[st.toUpperCase()])return KC[st.toUpperCase()];let h=0;for(const c of st)h=(h*31+c.charCodeAt(0))>>>0;return PAL[h%PAL.length]}
 const BASE=["ACTIVATED","COMPLETED_OK","CANCELLED","EXPIRED"],norm=v=>/^activated$/i.test(v||"")?"ACTIVATED":/^expired$/i.test(v||"")?"EXPIRED":/^completed$/i.test(v||"")?"COMPLETED_OK":/^cancell?ed$/i.test(v||"")?"CANCELLED":v,eq=(a,b)=>String(a||"").toUpperCase()===String(b||"").toUpperCase();
-function applyEd(r){try{const e=JSON.parse(localStorage.getItem("irs_status")||"{}")[r.id];if(e){if(e.m)r.meta=e.m;const b=e.b;
- if(b&&e.s!=null&&eq(b.s,r.xs))r.status=norm(e.s);
- r.items.forEach((x,k)=>{if(b&&b.it&&e.it&&e.it[k]!=null&&eq(b.it[k],x.xs))x.status=norm(e.it[k])})}}catch(_){}}
+function applyEd(r){try{const e=JSON.parse(localStorage.getItem("irs_status")||"{}")[r.id];if(e){if(e.m)r.meta=e.m;if(e.s!=null)r.status=norm(e.s);r.items.forEach((x,k)=>{if(e.it&&e.it[k]!=null)x.status=norm(e.it[k])})}}catch(_){}}
 const P=(x,f)=>{const r=parse(x,f);applyEd(r);return r};
 function setS(i,j,v){const r=data[i];if(j==="m")r.status=v;else r.items[j].status=v;
  saveEd(r);pending=true;render()}
@@ -309,7 +307,7 @@ document.querySelectorAll("th[data-k]").forEach(th=>th.onclick=()=>{sortD=sortK=
 const REQS=["Reseller","General","Defense","GISTDA"],OT="__other__",OTL="อื่นๆ (กรอกเอง)",
 APPS=["กฎหมาย, ประกอบสำนวน, พยานเอกสาร","การเกษตร, การใช้ที่ดิน","การทำแผนที่, เส้นทางคมนาคม, ผังเมือง","การศึกษา, ประกอบการฝึกอบรม","ข้อมูลแผนที่ฐาน (Base map)","ความมั่นคงของชาติ","ทรัพยากรชายฝั่ง","ทรัพยากรน้ำ","ธรณีวิทยา","ประชาสัมพันธ์, ของที่ระลึก","ป่าไม้","ภัยธรรมชาติและสิ่งแวดล้อม","ส่วนบุคคล"],
 ea=v=>String(v==null?"":v).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
-function saveEd(r){const v={s:r.status,it:r.items.map(x=>x.status),m:r.meta||{},b:{s:r.xs,it:r.items.map(x=>x.xs)}};try{const e=JSON.parse(localStorage.getItem("irs_status")||"{}");e[r.id]=v;localStorage.setItem("irs_status",JSON.stringify(e))}catch(_){}window.syncSet&&syncSet("status",r.id,v)}
+function saveEd(r){const v={s:r.status,it:r.items.map(x=>x.status),m:r.meta||{}};try{const e=JSON.parse(localStorage.getItem("irs_status")||"{}");e[r.id]=v;localStorage.setItem("irs_status",JSON.stringify(e))}catch(_){}window.syncSet&&syncSet("status",r.id,v)}
 const PFX=[[/^WC/i,"World Collection"],[/^EG/i,"Earth Gallery"],[/^IQ/i,"CAL/VAL"],[/^THA/i,"All Thailand"]];
 function rule(r){const x=PFX.find(p=>p[0].test((r.id||"").trim()));return x?{req:"MGS",proj:x[1],app:x[1]}:null}
 function ef(r,k){const m=r.meta||{};if(m[k])return m[k];const u=rule(r);return u?u[k]:""}
