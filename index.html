@@ -217,15 +217,15 @@ function parse(xml,file){const d=new DOMParser().parseFromString(xml,"applicatio
  if(d.querySelector("parsererror"))throw new Error("XML ไม่ถูกต้อง: "+file);const r=d.documentElement;
  return{file,meta:{},id:txt(r,"requestIdentifier"),name:txt(r,"progrName"),status:norm(txt(r,"progrStatus")),xs:norm(txt(r,"progrStatus")),
  aoi:kids(r,"areaOfInterest").map(geo).filter(Boolean)[0]||null,
- items:kids(r,"programmingItem").map(it=>({aoi:kids(it,"areaOfInterest").map(geo).filter(Boolean)[0]||null,status:norm(txt(it,"status")),xs:norm(txt(it,"status")),
-  acq:(kids(it,"acquisitionsList")[0]||{children:[]}).children.length}))}}
+ items:kids(r,"programmingItem").map((it,oi)=>({oi,aoi:kids(it,"areaOfInterest").map(geo).filter(Boolean)[0]||null,status:norm(txt(it,"status")),xs:norm(txt(it,"status")),
+  acq:(kids(it,"acquisitionsList")[0]||{children:[]}).children.length})).sort((a,b)=>(a.aoi?a.aoi.c[1]:1e9)-(b.aoi?b.aoi.c[1]:1e9)||a.oi-b.oi)}}
 const KC={EXPIRED:"#78716c",DELETED:"#FF3300",CANCELLED:"#FF99CC",REJECTED:"#9f1239",FAILED:"#be123c",COMPLETED:"#16a34a",COMPLETED_OK:"#16a34a",ACQUIRED:"#15803d",ACCEPTED:"#0d9488",PLANNED:"#0891b2",PENDING:"#d97706",INPROGRESS:"#ea580c",PROGRAMMED:"#7c3aed",ACTIVE:"#65a30d",ACTIVATED:"#f97316",CREATED:"#facc15"},PAL=["#db2777","#0ea5e9","#a16207","#4f46e5","#059669","#c026d3"];
 const fg=v=>/^created$/i.test(v||"")?"#3b2f00":"#fff";
 function sc(st){if(!st)return"#667085";if(KC[st.toUpperCase()])return KC[st.toUpperCase()];let h=0;for(const c of st)h=(h*31+c.charCodeAt(0))>>>0;return PAL[h%PAL.length]}
 const BASE=["ACTIVATED","COMPLETED_OK","CANCELLED","EXPIRED"],norm=v=>/^activated$/i.test(v||"")?"ACTIVATED":/^expired$/i.test(v||"")?"EXPIRED":/^completed$/i.test(v||"")?"COMPLETED_OK":/^cancell?ed$/i.test(v||"")?"CANCELLED":v,eq=(a,b)=>String(a||"").toUpperCase()===String(b||"").toUpperCase();
 function applyEd(r){try{const e=JSON.parse(localStorage.getItem("irs_status")||"{}")[r.id];if(e){if(e.m)r.meta=e.m;const b=e.b;
  if(b&&e.s!=null&&eq(b.s,r.xs))r.status=norm(e.s);
- r.items.forEach((x,k)=>{if(b&&b.it&&e.it&&e.it[k]!=null&&eq(b.it[k],x.xs))x.status=norm(e.it[k])})}}catch(_){}}
+ r.items.forEach(x=>{const k=x.oi;if(b&&b.it&&e.it&&e.it[k]!=null&&eq(b.it[k],x.xs))x.status=norm(e.it[k])})}}catch(_){}}
 const P=(x,f)=>{const r=parse(x,f);applyEd(r);return r};
 function setS(i,j,v){const r=data[i];if(j==="m")r.status=v;else r.items[j].status=v;
  saveEd(r);pending=true;render()}
@@ -309,7 +309,7 @@ document.querySelectorAll("th[data-k]").forEach(th=>th.onclick=()=>{sortD=sortK=
 const REQS=["Reseller","General","Defense","GISTDA"],OT="__other__",OTL="อื่นๆ (กรอกเอง)",
 APPS=["กฎหมาย, ประกอบสำนวน, พยานเอกสาร","การเกษตร, การใช้ที่ดิน","การทำแผนที่, เส้นทางคมนาคม, ผังเมือง","การศึกษา, ประกอบการฝึกอบรม","ข้อมูลแผนที่ฐาน (Base map)","ความมั่นคงของชาติ","ทรัพยากรชายฝั่ง","ทรัพยากรน้ำ","ธรณีวิทยา","ประชาสัมพันธ์, ของที่ระลึก","ป่าไม้","ภัยธรรมชาติและสิ่งแวดล้อม","ส่วนบุคคล"],
 ea=v=>String(v==null?"":v).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
-function saveEd(r){const v={s:r.status,it:r.items.map(x=>x.status),m:r.meta||{},b:{s:r.xs,it:r.items.map(x=>x.xs)}};try{const e=JSON.parse(localStorage.getItem("irs_status")||"{}");e[r.id]=v;localStorage.setItem("irs_status",JSON.stringify(e))}catch(_){}window.syncSet&&syncSet("status",r.id,v)}
+function saveEd(r){const by=[...r.items].sort((a,b)=>a.oi-b.oi),v={s:r.status,it:by.map(x=>x.status),m:r.meta||{},b:{s:r.xs,it:by.map(x=>x.xs)}};try{const e=JSON.parse(localStorage.getItem("irs_status")||"{}");e[r.id]=v;localStorage.setItem("irs_status",JSON.stringify(e))}catch(_){}window.syncSet&&syncSet("status",r.id,v)}
 const PFX=[[/^WC/i,"World Collection"],[/^EG/i,"Earth Gallery"],[/^IQ/i,"CAL/VAL"],[/^THA/i,"All Thailand"]];
 function rule(r){const x=PFX.find(p=>p[0].test((r.id||"").trim()));return x?{req:"MGS",proj:x[1],app:x[1],lvl:x[1]==="World Collection"?"Standard":""}:null}
 function ef(r,k){const m=r.meta||{};if(m[k])return m[k];const u=rule(r);return u?(u[k]||""):""}
