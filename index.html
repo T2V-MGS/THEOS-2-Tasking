@@ -667,4 +667,176 @@ pull();setInterval(pull,30000);
 })();
 </script>
 
+<script>
+/* ===== Strip AOI Builder (module) — แทรกท้าย <body> หลัง script เดิมทั้งหมด ===== */
+(function(G){
+"use strict";
+/* ---------- 1) GEODESY (Vincenty, WGS84) ---------- */
+const STRIP_WIDTH_KM=10.3, WA=6378137, WF=1/298.257223563, WB=WA*(1-WF), R=Math.PI/180;
+const normLon=x=>((x+540)%360+360)%360-180, mod360=x=>((x%360)+360)%360;
+function vDirect(lat,lon,az,s){
+ const f=WF,a=WA,b=WB,al1=az*R,sa1=Math.sin(al1),ca1=Math.cos(al1);
+ const tU1=(1-f)*Math.tan(lat*R),cU1=1/Math.sqrt(1+tU1*tU1),sU1=tU1*cU1;
+ const s1=Math.atan2(tU1,ca1),sa=cU1*sa1,c2a=1-sa*sa,u2=c2a*(a*a-b*b)/(b*b);
+ const A=1+u2/16384*(4096+u2*(-768+u2*(320-175*u2))),B=u2/1024*(256+u2*(-128+u2*(74-47*u2)));
+ let sg=s/(b*A),sgP,i=0,c2m,ss,cs;
+ do{c2m=Math.cos(2*s1+sg);ss=Math.sin(sg);cs=Math.cos(sg);
+  const d=B*ss*(c2m+B/4*(cs*(-1+2*c2m*c2m)-B/6*c2m*(-3+4*ss*ss)*(-3+4*c2m*c2m)));
+  sgP=sg;sg=s/(b*A)+d}while(Math.abs(sg-sgP)>1e-12&&++i<100);
+ const x=sU1*ss-cU1*cs*ca1,ph2=Math.atan2(sU1*cs+cU1*ss*ca1,(1-f)*Math.sqrt(sa*sa+x*x));
+ const lm=Math.atan2(ss*sa1,cU1*cs-sU1*ss*ca1),C=f/16*c2a*(4+f*(4-3*c2a));
+ const Ld=lm-(1-C)*f*sa*(sg+C*ss*(c2m+C*cs*(-1+2*c2m*c2m)));
+ return{lat:ph2/R,lon:normLon(lon+Ld/R),az2:mod360(Math.atan2(sa,-x)/R)};
+}
+function vInverse(lat1,lon1,lat2,lon2){
+ const f=WF,a=WA,b=WB,L=(lon2-lon1)*R;
+ const t1=(1-f)*Math.tan(lat1*R),c1=1/Math.sqrt(1+t1*t1),s1=t1*c1,t2=(1-f)*Math.tan(lat2*R),c2=1/Math.sqrt(1+t2*t2),s2=t2*c2;
+ let lm=L,lmP,i=0,sl,cl,sS,sg,cs,ss,cSa,c2m,sa;
+ do{sl=Math.sin(lm);cl=Math.cos(lm);sS=(c2*sl)**2+(c1*s2-s1*c2*cl)**2;ss=Math.sqrt(sS);
+  if(ss===0)return{s:0,az1:0,az2:0};
+  cs=s1*s2+c1*c2*cl;sg=Math.atan2(ss,cs);sa=c1*c2*sl/ss;cSa=1-sa*sa;c2m=cSa?cs-2*s1*s2/cSa:0;
+  const C=f/16*cSa*(4+f*(4-3*cSa));lmP=lm;lm=L+(1-C)*f*sa*(sg+C*ss*(c2m+C*cs*(-1+2*c2m*c2m)))}
+ while(Math.abs(lm-lmP)>1e-12&&++i<200);
+ const u2=cSa*(a*a-b*b)/(b*b),A=1+u2/16384*(4096+u2*(-768+u2*(320-175*u2))),B=u2/1024*(256+u2*(-128+u2*(74-47*u2)));
+ const d=B*ss*(c2m+B/4*(cs*(-1+2*c2m*c2m)-B/6*c2m*(-3+4*ss*ss)*(-3+4*c2m*c2m)));
+ return{s:b*A*(sg-d),az1:mod360(Math.atan2(c2*sl,c1*s2-s1*c2*cl)/R),az2:mod360(Math.atan2(c1*sl,-s1*c2+c1*s2*cl)/R)};
+}
+const dist=(p,q)=>vInverse(p.lat,p.lon,q.lat,q.lon).s;
+/* azimuth อัตโนมัติ (sun-synchronous) */
+function autoAz(lat,desc,incl){
+ const v=7560,w=465.1*Math.cos(lat*R),s=Math.cos(incl*R)/Math.cos(lat*R);
+ if(!isFinite(s)||Math.abs(s)>1)return null;
+ const al=Math.asin(s),aIn=desc?Math.PI-al:al;
+ return mod360(Math.atan2(v*Math.sin(aIn)-w,v*Math.cos(aIn))/R);
+}
+/* ---------- 2) GEOMETRY ---------- */
+function geom(lat,lon,az,lenKm){
+ const h=STRIP_WIDTH_KM*500,S={lat,lon},e=vDirect(lat,lon,az,lenKm*1000),E={lat:e.lat,lon:e.lon},azE=e.az2;
+ const P=(o,a)=>{const r=vDirect(o.lat,o.lon,a,h);return{lat:r.lat,lon:r.lon}};
+ const A=P(S,az+90),B=P(S,az-90),C=P(E,azE-90),D=P(E,azE+90);
+ return{S,E,azE,A,B,C,D,outer:[A,B,C,D],inner:[A,S,B,C,E,D,A]};
+}
+function outline(lat,lon,az,lenKm,n){ /* ขอบโค้งตาม geodesic: ขวาไปหน้า แล้วซ้ายย้อนกลับ */
+ n=n||60;const R_=[],L_=[],h=STRIP_WIDTH_KM*500;
+ for(let k=0;k<=n;k++){const c=vDirect(lat,lon,az,lenKm*1000*k/n),a=k?c.az2:az;
+  const r=vDirect(c.lat,c.lon,a+90,h),l=vDirect(c.lat,c.lon,a-90,h);R_.push({lat:r.lat,lon:r.lon});L_.push({lat:l.lat,lon:l.lon})}
+ return R_.concat(L_.reverse());
+}
+/* ---------- 3) EXPORT ---------- */
+const esc=s=>String(s).replace(/[<>&"]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c]));
+const pos=p=>`<ns1:pos srsDimension="2">${(p.lat*R).toFixed(14)} ${(p.lon*R).toFixed(14)}</ns1:pos>`;
+const ring=pts=>`<polygon><geometry><ns1:exterior><ns1:LinearRing>${pts.map(pos).join("")}</ns1:LinearRing></ns1:exterior></geometry></polygon>`;
+function toXML(s){const g=geom(s.lat,s.lon,s.az,s.len);
+ return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<ns4:ImageRequestStatus xmlns:ns1="http://www.opengis.net/gml" xmlns:ns2="http://www.w3.org/1999/xlink" xmlns:ns4="http://ads/ADSEO">\n<schemeHeader><schemeName>ImageRequestStatus.xsd</schemeName><schemeVersion>1.0</schemeVersion></schemeHeader><requestIdentifier>${esc(s.id)}</requestIdentifier><progrName>ProgR-${esc(s.id)}</progrName><progrStatus>ACTIVATED</progrStatus>\n<areaOfInterest>${ring(g.outer)}</areaOfInterest>\n<programmingItem><areaOfInterest>${ring(g.inner)}</areaOfInterest><status>ACTIVATED</status><acquisitionsList/></programmingItem>\n</ns4:ImageRequestStatus>\n`}
+const closed=s=>{const o=outline(s.lat,s.lon,s.az,s.len);return o.concat([o[0]])};
+const props=s=>({id:s.id,azimuth_deg:+s.az.toFixed(4),length_km:+s.len.toFixed(3),width_km:STRIP_WIDTH_KM});
+const toGeoJSON=l=>JSON.stringify({type:"FeatureCollection",features:l.map(s=>({type:"Feature",properties:props(s),geometry:{type:"Polygon",coordinates:[closed(s).map(p=>[+p.lon.toFixed(7),+p.lat.toFixed(7)])]}}))},null,1);
+const toKML=l=>`<?xml version="1.0" encoding="UTF-8"?>\n<kml xmlns="http://www.opengis.net/kml/2.2"><Document>${l.map(s=>`<Placemark><name>${esc(s.id)}</name><description>az ${s.az.toFixed(3)} / ${s.len.toFixed(3)} km x ${STRIP_WIDTH_KM} km</description><Polygon><outerBoundaryIs><LinearRing><coordinates>${closed(s).map(p=>p.lon.toFixed(7)+","+p.lat.toFixed(7)+",0").join(" ")}</coordinates></LinearRing></outerBoundaryIs></Polygon></Placemark>`).join("")}</Document></kml>\n`;
+const toWKT=l=>l.map(s=>`POLYGON((${closed(s).map(p=>p.lon.toFixed(7)+" "+p.lat.toFixed(7)).join(", ")}))`).join("\n");
+/* ---------- API / node ---------- */
+const API={STRIP_WIDTH_KM,vDirect,vInverse,autoAz,geom,outline,toXML,toGeoJSON,toKML,toWKT,normLon};
+G.StripAOI=API;if(typeof module!=="undefined")module.exports=API;
+if(typeof document==="undefined"||typeof L==="undefined"||typeof map==="undefined")return;
+
+/* ---------- 4) STATE ---------- */
+const st=[],opt={incl:98.09,mode:"start"};let sel=-1,active=false,placing=false;
+function norm(s){
+ s.lat=Math.max(-89.9,Math.min(89.9,+s.lat||0));s.lon=normLon(+s.lon||0);s.len=+s.len>0?+s.len:250;
+ if(s.auto){const a=autoAz(s.lat,s.desc,opt.incl);a==null?s.auto=false:s.az=a}
+ if(!isFinite(s.az))s.az=s.desc?192:12;s.az=mod360(s.az);
+ s.desc=Math.cos(s.az*R)<0;return s}
+function add(o){const s=norm(Object.assign({id:"STRIP_"+(st.length+1),lat:13.75,lon:100.5,az:NaN,len:250,desc:true,auto:true,orig:null},o));st.push(s);sel=st.length-1;return s}
+/* ---------- 5) MAP ---------- */
+map.createPane("stripPane");map.getPane("stripPane").style.zIndex=450;
+const lg=L.layerGroup().addTo(map),hg=L.layerGroup().addTo(map);let H=null;
+const ll=p=>[p.lat,p.lon];
+function drawPolys(){lg.clearLayers();st.forEach((s,i)=>{
+ const on=i===sel,m=L.polygon(outline(s.lat,s.lon,s.az,s.len).map(ll),{pane:"stripPane",color:on?"#1e40af":"#2563eb",weight:0.2,fillColor:"#2563eb",fillOpacity:on?.4:.28}).bindTooltip(s.id,{sticky:true}).addTo(lg);
+ m.on("click",e=>{L.DomEvent.stopPropagation(e);pick(i)})})}
+const mk=(c,t)=>L.marker([0,0],{draggable:true,title:t,icon:L.divIcon({className:"",iconSize:[18,18],iconAnchor:[9,9],html:`<div style="width:16px;height:16px;border-radius:50%;background:${c};border:2px solid #fff;box-shadow:0 0 4px #0009"></div>`})});
+function moveH(skip){if(!H||sel<0)return;const s=st[sel],g=geom(s.lat,s.lon,s.az,s.len),m=vDirect(s.lat,s.lon,s.az,s.len*500);
+ if(skip!==H.g)H.g.setLatLng(ll(g.S));if(skip!==H.o)H.o.setLatLng([m.lat,m.lon]);if(skip!==H.r)H.r.setLatLng(ll(g.E))}
+function mkHandles(){hg.clearLayers();H=null;if(sel<0)return;
+ H={g:mk("#16a34a","ย้าย (จุดเริ่ม)"),o:mk("#f97316","ย้าย (กึ่งกลาง)"),r:mk("#dc2626","ปรับความยาว (ไม่เปลี่ยน azimuth)")};
+ const upd=(skip)=>{drawPolys();moveH(skip);fields()};
+ H.g.on("drag",e=>{const s=st[sel],p=e.target.getLatLng();s.lat=p.lat;s.lon=p.lng;norm(s);upd(H.g)});
+ H.o.on("drag",e=>{const s=st[sel],p=e.target.getLatLng(),m=vDirect(s.lat,s.lon,s.az,s.len*500);s.lat+=p.lat-m.lat;s.lon+=p.lng-m.lon;norm(s);upd(H.o)});
+ H.r.on("drag",e=>{const s=st[sel],p=e.target.getLatLng(),v=vInverse(s.lat,s.lon,p.lat,p.lng); /* ปรับความยาวเท่านั้น: ฉายจุดที่ลากลงบนแนว azimuth เดิม */
+  const along=v.s*Math.cos((v.az1-s.az)*R);s.len=Math.max(0.1,along/1000);norm(s);upd(H.r)});
+ Object.values(H).forEach(h=>{h.on("dragend",()=>{moveH();fields()});h.addTo(hg)});moveH()}
+function redraw(){drawPolys();mkHandles();fields()}
+function pick(i){sel=i;redraw()}
+map.on("click",e=>{if(!active||!placing)return;const p=e.latlng.wrap();let s=st[sel];if(!s)s=add({});
+ s.auto=s.auto;s.lat=p.lat;s.lon=p.lng;norm(s);
+ if(opt.mode==="center"){const b=vDirect(p.lat,p.lng,s.az+180,s.len*500);s.lat=b.lat;s.lon=b.lon;norm(s)}
+placing=false; /* วางครั้งเดียวแล้วล็อกอัตโนมัติ */
+ redraw()});
+/* ---------- 6) UI ---------- */
+const $=id=>document.getElementById(id),fmt=(p)=>p.lat.toFixed(6)+", "+p.lon.toFixed(6);
+const css=document.createElement("style");css.textContent=`#strippanel{font-size:13px;display:grid;gap:8px;align-content:start}#strippanel .r{display:flex;gap:6px;flex-wrap:wrap;align-items:center}#strippanel .g{display:grid;grid-template-columns:1fr 1fr;gap:6px}#strippanel label{display:grid;gap:2px;font-size:12px;color:var(--mut,#667085)}#strippanel label.i{display:flex;align-items:center;gap:4px}#strippanel input:not([type=checkbox]):not([type=radio]),#strippanel select{font:inherit;padding:4px 6px;border:1px solid var(--bd);border-radius:6px;background:var(--panel,var(--card));color:var(--tx);min-width:0}#strippanel button,#strippanel .b{font:inherit;font-size:12px;padding:4px 9px;border:1px solid var(--bd);border-radius:7px;background:var(--panel,var(--card));color:var(--tx);cursor:pointer}#strippanel button:hover{border-color:var(--ac)}#strippanel .bd{background:#2563eb22;border:1px solid #2563eb;border-radius:8px;padding:5px 9px}#strippanel pre{margin:0;font-size:11px;white-space:pre-wrap;background:var(--bg,#0001);padding:6px;border-radius:6px}`;document.head.appendChild(css);
+const btn=document.createElement("button");btn.className="btn";btn.id="sST";btn.textContent="✏️ สร้างแนวถ่าย";btn.onclick=()=>panel("strip");$("seg").appendChild(btn);
+const P=document.createElement("div");P.id="strippanel";P.hidden=true;
+P.innerHTML=`<div class="bd">ความกว้างแถบ: <b>${STRIP_WIDTH_KM} km (fixed)</b></div>
+<div class="r"><select id="spSel" style="flex:1"></select><button id="spNew">+ ใหม่</button><button id="spDup">สำเนา</button><button id="spDel">ลบ</button></div>
+<label>requestIdentifier<input id="spId"></label>
+<div class="r">คลิกแผนที่ =<label class="i"><input type="radio" name="spM" value="start" checked>จุดเริ่ม</label><label class="i"><input type="radio" name="spM" value="center">กึ่งกลาง</label></div>
+<div class="g"><label>Lat (จุดเริ่ม)<input id="spLat" type="number" step="any"></label><label>Lon (จุดเริ่ม)<input id="spLon" type="number" step="any"></label><label>ความยาว (กม.)<input id="spLen" type="number" step="any" min="0"></label><label>Azimuth (°)<input id="spAz" type="number" step="any"></label></div>
+<div class="r"><label class="i"><input type="checkbox" id="spAuto">Azimuth อัตโนมัติ</label><select id="spDir"><option value="d">descending</option><option value="a">ascending</option></select><label class="i">i°<input id="spInc" type="number" step="any" style="width:72px"></label></div>
+<div class="r"><button id="spOK">✔ ตกลง (ล็อกแนว)</button><button id="spPlace">📍 คลิกวาง/ย้าย</button></div><div id="spSt" style="font-size:12px"></div>
+<pre id="spInfo">คลิกบนแผนที่เพื่อวางแถบ</pre>
+<div class="r"><label class="b" style="display:inline-block">นำเข้า XML<input type="file" id="spFile" accept=".xml" multiple hidden></label><button id="spX1">XML</button><button id="spXA">XML ทุกแถบ</button><button id="spGJ">GeoJSON</button><button id="spKML">KML</button><button id="spWKT">WKT</button></div>
+<div style="font-size:11px;color:var(--mut)">🟢 ย้ายจากจุดเริ่ม · 🟠 ย้ายจากกึ่งกลาง · 🔴 ปรับความยาวเท่านั้น (azimuth คงเดิม)</div>`;
+$("sw").appendChild(P);
+const _panel=window.panel;
+window.panel=function(p){const on=p==="strip";active=on;P.hidden=!on;btn.classList.toggle("on",on);
+ if(on){if(!st.length)placing=true;$("side").hidden=true;$("orbpanel").hidden=true;$("sIR").classList.remove("on");$("sOR").classList.remove("on");window._orbTab=false;if(sel>=0)redraw()}else{_panel(p);map.getContainer().style.cursor=""}};
+const setV=(id,v)=>{const e=$(id);if(document.activeElement!==e)e.value=v};
+function fields(){const pl=placing&&active;map.getContainer().style.cursor=pl?"crosshair":"";if($("spSt"))$("spSt").textContent=pl?"🟢 โหมดวาง: คลิกแผนที่ 1 ครั้งเพื่อวางตำแหน่ง (แล้วล็อกอัตโนมัติ)":"🔒 ล็อกแล้ว: คลิกแผนที่ไม่มีผล (ลาก handle หรือกรอกค่าได้)";const o=$("spSel");o.innerHTML=st.map((s,i)=>`<option value="${i}" ${i===sel?"selected":""}>${esc(s.id)}</option>`).join("")||"<option>— ยังไม่มีแถบ —</option>";
+ $("spInc").value=opt.incl;const s=st[sel];if(!s){$("spInfo").textContent="คลิกบนแผนที่เพื่อวางแถบ";return}
+ setV("spId",s.id);setV("spLat",s.lat.toFixed(6));setV("spLon",s.lon.toFixed(6));setV("spLen",+s.len.toFixed(3));setV("spAz",+s.az.toFixed(3));
+ $("spAuto").checked=s.auto;$("spDir").value=s.desc?"d":"a";
+ const g=geom(s.lat,s.lon,s.az,s.len),t=s.az%180,tilt=t>90?t-180:t;
+ let tx=`Az เริ่ม ${s.az.toFixed(3)}° · Az ท้าย ${g.azE.toFixed(3)}°\nเอียงจากแนว N–S ${tilt.toFixed(2)}°\nขนาด ${s.len.toFixed(3)} × ${STRIP_WIDTH_KM} กม.\n`+["A","B","C","D"].map(k=>k+" "+fmt(g[k])).join("\n");
+ if(s.orig)tx+="\nต่างจากต้นฉบับ (ม.): "+["A","B","C","D"].map((k,j)=>k+" "+dist(g[k],s.orig[j]).toFixed(1)).join(" · ");
+ $("spInfo").textContent=tx}
+const cur=()=>st[sel];
+function edit(fn){const s=cur();if(!s)return;fn(s);norm(s);redraw()}
+$("spSel").onchange=e=>pick(+e.target.value);
+$("spNew").onclick=()=>{const c=map.getCenter();placing=true;add({lat:c.lat,lon:c.lng});redraw()};
+$("spOK").onclick=()=>{placing=false;fields()};
+$("spPlace").onclick=()=>{placing=true;fields()};
+$("spDup").onclick=()=>{const s=cur();if(!s)return;const q=vDirect(s.lat,s.lon,s.az+90,STRIP_WIDTH_KM*1000);add({id:s.id+"_copy",lat:q.lat,lon:q.lon,az:s.az,len:s.len,desc:s.desc,auto:s.auto});placing=false;redraw()};
+$("spDel").onclick=()=>{if(sel<0)return;st.splice(sel,1);sel=Math.min(sel,st.length-1);redraw()};
+$("spId").oninput=e=>{const s=cur();if(s){s.id=e.target.value;drawPolys()}};
+$("spLat").onchange=e=>edit(s=>s.lat=+e.target.value);$("spLon").onchange=e=>edit(s=>s.lon=+e.target.value);
+$("spLen").onchange=e=>edit(s=>{const v=+e.target.value;if(v>0)s.len=v});
+$("spAz").onchange=e=>edit(s=>{s.az=+e.target.value;s.auto=false});
+$("spAuto").onchange=e=>edit(s=>s.auto=e.target.checked);
+$("spDir").onchange=e=>edit(s=>{s.desc=e.target.value==="d";if(!s.auto)s.az=s.desc?(Math.cos(s.az*R)<0?s.az:180-s.az):(Math.cos(s.az*R)>=0?s.az:180-s.az)});
+$("spInc").onchange=e=>{opt.incl=+e.target.value||98.09;edit(()=>{})};
+document.querySelectorAll('input[name=spM]').forEach(r=>r.onchange=e=>opt.mode=e.target.value);
+/* import */
+const dl=(n,t,ty)=>{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([t],{type:ty}));a.download=n;a.click()};
+function parseXML(name,text){const d=new DOMParser().parseFromString(text,"application/xml");if(d.querySelector("parsererror"))throw new Error(name+": XML ไม่ถูกต้อง");
+ const id=(d.getElementsByTagNameNS("*","requestIdentifier")[0]||{}).textContent||name.replace(/\.xml$/i,"");
+ const rp=n=>[...n.getElementsByTagNameNS("*","pos")].map(e=>{const v=e.textContent.trim().split(/\s+/).map(Number);return{lat:v[0]/R,lon:v[1]/R}});
+ const items=[...d.getElementsByTagNameNS("*","programmingItem")].map(n=>rp(n)).filter(a=>a.length>=7);
+ const mid=(p,q)=>{const v=vInverse(p.lat,p.lon,q.lat,q.lon),m=vDirect(p.lat,p.lon,v.az1,v.s/2);return{lat:m.lat,lon:m.lon}};
+ const out=[];
+ if(items.length)items.forEach((p,k)=>out.push({id:id+(items.length>1?"_"+(k+1):""),S:p[1],E:p[4],orig:[p[0],p[2],p[3],p[5]]}));
+ else{const p=rp(d.documentElement);if(p.length<4)throw new Error(name+": ไม่พบพิกัด");out.push({id,S:mid(p[0],p[1]),E:mid(p[3],p[2]),orig:[p[0],p[1],p[2],p[3]]})}
+ return out}
+$("spFile").onchange=async e=>{for(const f of e.target.files){try{
+ parseXML(f.name,await f.text()).forEach(o=>{const v=vInverse(o.S.lat,o.S.lon,o.E.lat,o.E.lon); /* ไม่อ่านความกว้างจากไฟล์ — ใช้ 10.3 เสมอ */
+  add({id:o.id,lat:o.S.lat,lon:o.S.lon,az:v.az1,len:v.s/1000,auto:false,orig:o.orig})})}catch(err){alert(err.message)}}
+ e.target.value="";placing=false;redraw();if(cur()){const b=L.latLngBounds(outline(cur().lat,cur().lon,cur().az,cur().len).map(ll));map.fitBounds(b,{padding:[30,30]})}};
+$("spX1").onclick=()=>{const s=cur();if(s)dl("IR_STATUS_"+s.id+".xml",toXML(s),"application/xml")};
+$("spXA").onclick=()=>st.forEach((s,i)=>setTimeout(()=>dl("IR_STATUS_"+s.id+".xml",toXML(s),"application/xml"),i*350));
+$("spGJ").onclick=()=>st.length&&dl("strips.geojson",toGeoJSON(st),"application/geo+json");
+$("spKML").onclick=()=>st.length&&dl("strips.kml",toKML(st),"application/vnd.google-earth.kml+xml");
+$("spWKT").onclick=()=>st.length&&dl("strips.wkt",toWKT(st),"text/plain");
+fields();
+})(typeof window!=="undefined"?window:globalThis);
+
+</script>
 </body></html>
