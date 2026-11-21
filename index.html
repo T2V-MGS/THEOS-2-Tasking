@@ -198,6 +198,30 @@ body.ro .del{display:none!important}
 </main>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
+/* Persistent browser cache for large records. Existing localStorage data is migrated, never cleared until copied. */
+window.TheosStore = (() => {
+  const dbp = new Promise((resolve, reject) => {
+    const req = indexedDB.open("theos2_store", 1);
+    req.onupgradeneeded = () => { if (!req.result.objectStoreNames.contains("kv")) req.result.createObjectStore("kv"); };
+    req.onsuccess = () => resolve(req.result); req.onerror = () => reject(req.error);
+  });
+  const request = (mode, fn) => dbp.then(db => new Promise((resolve, reject) => {
+    const tx = db.transaction("kv", mode), store = tx.objectStore("kv");
+    let result; try { result = fn(store); } catch (e) { reject(e); return; }
+    tx.oncomplete = () => resolve(result && result.result); tx.onerror = () => reject(tx.error); tx.onabort = () => reject(tx.error);
+  }));
+  return {
+    get: key => request("readonly", s => s.get(key)),
+    set: (key, value) => request("readwrite", s => s.put(value, key)),
+    del: key => request("readwrite", s => s.delete(key)),
+    all: prefix => dbp.then(db => new Promise((resolve, reject) => {
+      const tx=db.transaction("kv","readonly"), st=tx.objectStore("kv"), out={};
+      const q=st.openCursor(); q.onsuccess=()=>{const c=q.result;if(c){if(String(c.key).startsWith(prefix))out[String(c.key).slice(prefix.length)]=c.value;c.continue();}else resolve(out)};q.onerror=()=>reject(q.error);
+    }))
+  };
+})();
+</script>
+<script>
 
 const SAMPLE_NAME="mmgsimg_IR_STATUS_mmgsimg_ACQ_20250828_FY680712_TH2.xml";
 const SAMPLE=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><ns4:ImageRequestStatus xmlns:ns1="http://www.opengis.net/gml" xmlns:ns2="http://www.w3.org/1999/xlink" xmlns:ns4="http://ads/ADSEO"><schemeHeader><schemeName>ImageRequestStatus.xsd</schemeName><schemeVersion>1.0</schemeVersion></schemeHeader><requestIdentifier>mmgsimg_ACQ_20250828_FY680712_TH2</requestIdentifier><progrName>ProgR-mmgsimg_ACQ_20250828_FY680712_TH2</progrName><progrStatus>DELETED</progrStatus><areaOfInterest><polygon><geometry><ns1:exterior><ns1:LinearRing><ns1:pos srsDimension="2">0.2731086647913937 1.8345498616001872</ns1:pos><ns1:pos srsDimension="2">0.27310914995801916 1.8329214059828114</ns1:pos><ns1:pos srsDimension="2">0.27468704405018973 1.8329215495012356</ns1:pos><ns1:pos srsDimension="2">0.27468655595141106 1.8345507227281865</ns1:pos></ns1:LinearRing></ns1:exterior></geometry></polygon></areaOfInterest><programmingItem><areaOfInterest><polygon><geometry><ns1:exterior><ns1:LinearRing><ns1:pos srsDimension="2">0.2751468784459912 1.832995528406369</ns1:pos><ns1:pos srsDimension="2">0.27498044341511835 1.8338165103181172</ns1:pos><ns1:pos srsDimension="2">0.274814008227111 1.834637453977579</ns1:pos><ns1:pos srsDimension="2">0.27270841208350083 1.8341819607109278</ns1:pos><ns1:pos srsDimension="2">0.27287484910478144 1.8333614994550589</ns1:pos><ns1:pos srsDimension="2">0.2730412859700083 1.832541000277154</ns1:pos><ns1:pos srsDimension="2">0.2751468784459912 1.832995528406369</ns1:pos></ns1:LinearRing></ns1:exterior></geometry></polygon></areaOfInterest><status>DELETED</status><acquisitionsList/></programmingItem><programmingItem><areaOfInterest><polygon><geometry><ns1:exterior><ns1:LinearRing><ns1:pos srsDimension="2">0.2748254617742367 1.8345807211287148</ns1:pos><ns1:pos srsDimension="2">0.2746590264625338 1.8354016290805768</ns1:pos><ns1:pos srsDimension="2">0.27449259099386114 1.8362224988306222</ns1:pos><ns1:pos srsDimension="2">0.2726369494007038 1.8358210997670528</ns1:pos><ns1:pos srsDimension="2">0.27280338648398256 1.8350006548102227</ns1:pos><ns1:pos srsDimension="2">0.2729698234112443 1.8341801719425481</ns1:pos><ns1:pos srsDimension="2">0.2748254617742367 1.8345807211287148</ns1:pos></ns1:LinearRing></ns1:exterior></geometry></polygon></areaOfInterest><status>DELETED</status><acquisitionsList/></programmingItem></ns4:ImageRequestStatus>`;
@@ -224,7 +248,7 @@ const KC={EXPIRED:"#78716c",DELETED:"#FF3300",CANCELLED:"#FF99CC",REJECTED:"#9f1
 const fg=v=>/^created$/i.test(v||"")?"#3b2f00":"#fff";
 function sc(st){if(!st)return"#667085";if(KC[st.toUpperCase()])return KC[st.toUpperCase()];let h=0;for(const c of st)h=(h*31+c.charCodeAt(0))>>>0;return PAL[h%PAL.length]}
 const BASE=["ACTIVATED","COMPLETED_OK","CANCELLED","EXPIRED"],norm=v=>/^activated$/i.test(v||"")?"ACTIVATED":/^expired$/i.test(v||"")?"EXPIRED":/^completed$/i.test(v||"")?"COMPLETED_OK":/^cancell?ed$/i.test(v||"")?"CANCELLED":v,eq=(a,b)=>String(a||"").toUpperCase()===String(b||"").toUpperCase();
-function applyEd(r){try{const e=JSON.parse(localStorage.getItem("irs_status")||"{}")[r.id];if(e){if(e.m)r.meta=e.m;const b=e.b;
+function applyEd(r){try{const e=statusCache[r.id];if(e){if(e.m)r.meta=e.m;const b=e.b;
  if(b&&e.s!=null&&eq(b.s,r.xs))r.status=norm(e.s);
  r.items.forEach(x=>{const k=x.oi;if(b&&b.it&&e.it&&e.it[k]!=null&&eq(b.it[k],x.xs))x.status=norm(e.it[k])})}}catch(_){}}
 const P=(x,f)=>{const r=parse(x,f);applyEd(r);return r};
@@ -293,13 +317,13 @@ function show(key){pending=false;go(2);street();selKey=key;const[i,j]=key.split(
  $("mt").textContent="แสดง: "+r.id+(j==="m"?" (ทุกแนว)":" — แนวที่ "+(+j))+" · ทุกคำสั่งแสดงอยู่บนแผนที่เดียวกัน";render()}
 function showAll(){pending=false;go(2);street();selKey=null;draw(null,null);const n=data.filter(vis).length;$("mt").textContent="แสดง "+n+" คำสั่ง"+($("mf").value?" · สถานะ "+$("mf").value:" · ทุกสถานะ")+" บน Google Street";render()}
 function mapFilter(){showAll()}
-function upsertXml(name,text,o){o=o||{};const row=P(text,name);const i=data.findIndex(r=>r.file===name||(row.id&&r.id===row.id));if(i>=0){const old=data[i].file;data[i]=row;if(old!==name&&old!==SAMPLE_NAME){try{const m0=JSON.parse(localStorage.getItem("irs_xml")||"{}");delete m0[old];localStorage.setItem("irs_xml",JSON.stringify(m0))}catch(_){}if(o.sync&&window.syncSet)syncSet("xml",old,"__DELETED__")}}else data.push(row);if(o.local){try{const m=JSON.parse(localStorage.getItem("irs_xml")||"{}");m[name]=text;localStorage.setItem("irs_xml",JSON.stringify(m))}catch(_){if(!o.quiet)alert("พื้นที่เก็บในเบราว์เซอร์เต็ม — ไฟล์นี้จะไม่ค้างหลังรีโหลด (ถ้าเปิดแชร์ไว้ จะยังอยู่บนเซิร์ฟเวอร์)")}}if(o.fresh){const r=data.find(x=>x.file===name);if(r){r.status=r.xs;r.items.forEach(x=>x.status=x.xs);saveEd(r)}}
-if(o.sync&&window.syncSet)syncSet("xml",name,text)}
-function load(files){[...files].forEach(f=>{const rd=new FileReader();rd.onload=()=>{try{upsertXml(f.name,rd.result,{local:true,sync:true,fresh:true});$("q").value="";render();applyDef();render();show(data.findIndex(r=>r.file===f.name)+":m")}catch(e){alert(e.message)}};rd.readAsText(f)})}
+const xmlCache={},statusCache={};
+function upsertXml(name,text,o){o=o||{};const row=P(text,name);const i=data.findIndex(r=>r.file===name||(row.id&&r.id===row.id));if(i>=0){const old=data[i].file;data[i]=row;if(old!==name&&old!==SAMPLE_NAME){delete xmlCache[old];TheosStore.del("irs_xml:"+old).catch(console.warn);if(o.sync&&window.syncSet)syncSet("xml",old,"__DELETED__")}}else data.push(row);if(o.local){xmlCache[name]=text;TheosStore.set("irs_xml:"+name,text).catch(e=>{console.error(e);if(!o.quiet)alert("ไม่สามารถบันทึกไฟล์ลงพื้นที่จัดเก็บของเบราว์เซอร์ได้ กรุณาตรวจสอบพื้นที่ว่างหรือส่งข้อมูลขึ้นเซิร์ฟเวอร์")})}if(o.fresh){const r=data.find(x=>x.file===name);if(r){r.status=r.xs;r.items.forEach(x=>x.status=x.xs);saveEd(r)}}if(o.sync&&window.syncSet)syncSet("xml",name,text)}
+async function load(files){for(const f of [...files]){try{const t=await f.text();upsertXml(f.name,t,{local:true,sync:true,fresh:true});$("q").value="";render();applyDef();render();show(data.findIndex(r=>r.file===f.name)+":m")}catch(e){alert(f.name+": "+e.message)}}}
 function delXml(i){const r=data[i];if(!r||r.file===SAMPLE_NAME)return;
  if(!confirm("ลบไฟล์ XML นี้ออกจากระบบ?\n\n"+r.file+"\n\n(ถ้าเปิดแชร์ไว้ เพื่อนทุกคนจะเห็นว่าไฟล์นี้ถูกลบด้วย)"))return;
  const name=r.file;data.splice(i,1);
- try{const m=JSON.parse(localStorage.getItem("irs_xml")||"{}");delete m[name];localStorage.setItem("irs_xml",JSON.stringify(m))}catch(_){}
+ delete xmlCache[name];TheosStore.del("irs_xml:"+name).catch(console.warn);
  if(window.syncSet)syncSet("xml",name,"__DELETED__");
  selKey=null;pending=true;applyDef();render();if(!$("pg2").hidden)showAll()}
 function dl(name,t,type){const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([t],{type}));a.download=name;a.click()}
@@ -318,7 +342,7 @@ document.querySelectorAll("th[data-k]").forEach(th=>th.onclick=()=>{sortD=sortK=
 const REQS=["Reseller","General","Defense","GISTDA"],OT="__other__",OTL="อื่นๆ (กรอกเอง)",
 APPS=["กฎหมาย, ประกอบสำนวน, พยานเอกสาร","การเกษตร, การใช้ที่ดิน","การทำแผนที่, เส้นทางคมนาคม, ผังเมือง","การศึกษา, ประกอบการฝึกอบรม","ข้อมูลแผนที่ฐาน (Base map)","ความมั่นคงของชาติ","ทรัพยากรชายฝั่ง","ทรัพยากรน้ำ","ธรณีวิทยา","ประชาสัมพันธ์, ของที่ระลึก","ป่าไม้","ภัยธรรมชาติและสิ่งแวดล้อม","ส่วนบุคคล"],
 ea=v=>String(v==null?"":v).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
-function saveEd(r){const by=[...r.items].sort((a,b)=>a.oi-b.oi),v={s:r.status,it:by.map(x=>x.status),m:r.meta||{},b:{s:r.xs,it:by.map(x=>x.xs)}};try{const e=JSON.parse(localStorage.getItem("irs_status")||"{}");e[r.id]=v;localStorage.setItem("irs_status",JSON.stringify(e))}catch(_){}window.syncSet&&syncSet("status",r.id,v)}
+function saveEd(r){const by=[...r.items].sort((a,b)=>a.oi-b.oi),v={s:r.status,it:by.map(x=>x.status),m:r.meta||{},b:{s:r.xs,it:by.map(x=>x.xs)}};statusCache[r.id]=v;TheosStore.set("irs_status:"+r.id,v).catch(console.warn);window.syncSet&&syncSet("status",r.id,v)}
 const PFX=[[/^WC/i,"World Collection"],[/^EG/i,"Earth Gallery"],[/^IQ/i,"CAL/VAL"],[/^THA/i,"All Thailand"]];
 function rule(r){const x=PFX.find(p=>p[0].test((r.id||"").trim()));return x?{req:"MGS",proj:x[1],app:x[1],lvl:x[1]==="World Collection"?"Standard":""}:null}
 function ef(r,k){const m=r.meta||{};if(m[k])return m[k];const u=rule(r);return u?(u[k]||""):""}
@@ -362,7 +386,8 @@ $("colbtn").onclick=e=>{e.stopPropagation();const h=colApply();$("colpop").inner
 document.addEventListener("click",e=>{if(!e.target.closest("#colpop"))$("colpop").hidden=true});colApply();
 $("sf").addEventListener("change",()=>{window._udS=true});$("mf").addEventListener("change",()=>{window._udM=true});
 document.addEventListener("focusout",()=>{setTimeout(()=>{const a=document.activeElement;if(window._rp&&!(a&&a.closest&&a.closest("#tb"))){window._rp=false;render();if(!$("pg2").hidden){window._nf=true;try{selKey?show(selKey):showAll()}finally{window._nf=false}}}},250)});
-initMap();data.push(P(SAMPLE,SAMPLE_NAME));try{const m=JSON.parse(localStorage.getItem("irs_xml")||"{}");for(const n in m){try{upsertXml(n,m[n])}catch(_){}}}catch(_){}selKey=null;render();applyDef();applyMapDef();render();go(1);
+initMap();data.push(P(SAMPLE,SAMPLE_NAME));selKey=null;render();applyDef();applyMapDef();render();go(1);
+window.theosDataReady=(async()=>{try{const oldXml=JSON.parse(localStorage.getItem("irs_xml")||"{}");for(const n in oldXml){xmlCache[n]=oldXml[n];await TheosStore.set("irs_xml:"+n,oldXml[n]);}if(Object.keys(oldXml).length)localStorage.removeItem("irs_xml");const oldStatus=JSON.parse(localStorage.getItem("irs_status")||"{}");for(const n in oldStatus){statusCache[n]=oldStatus[n];await TheosStore.set("irs_status:"+n,oldStatus[n]);}if(Object.keys(oldStatus).length)localStorage.removeItem("irs_status");const storedXml=await TheosStore.all("irs_xml:"),storedStatus=await TheosStore.all("irs_status:");Object.assign(xmlCache,storedXml);Object.assign(statusCache,storedStatus);for(const n in storedXml){try{upsertXml(n,storedXml[n])}catch(e){console.warn("XML skipped",n,e)}}data.forEach(applyEd);render();applyDef();applyMapDef();render();}catch(e){console.error("Data restore/migration failed",e);alert("พบปัญหาระหว่างย้ายข้อมูลเดิม กรุณาอย่าล้างข้อมูลเบราว์เซอร์ และติดต่อผู้ดูแลระบบ")}})();
 
 // ---- สลับแผงข้าง ----
 function panel(p){
@@ -588,7 +613,7 @@ const od=E("odrop");
 ["dragleave","drop"].forEach(ev=>od.addEventListener(ev,e=>{e.preventDefault();od.classList.remove("hv")}));
 od.addEventListener("drop",e=>handleFiles([...e.dataTransfer.files]));
 window.orbitRedraw=()=>draw(false);
-window.orbitSetUploads=g=>{for(const k in g){if(g[k]==="__DELETED__")delete uploads[k];else uploads[k]=g[k]}saveUp();refresh()};
+window.orbitSetUploads=g=>{for(const k in g){if(g[k]==="__DELETED__"){if(uploads[k])TheosStore.get("geo_conflict:"+k).then(old=>old?null:TheosStore.set("geo_conflict:"+k,uploads[k])).catch(console.warn);delete uploads[k]}else{if(uploads[k]&&JSON.stringify(uploads[k])!==JSON.stringify(g[k]))TheosStore.get("geo_conflict:"+k).then(old=>old?null:TheosStore.set("geo_conflict:"+k,uploads[k])).catch(console.warn);uploads[k]=g[k]}}saveUp();refresh()};
 window.orbitGetUploads=()=>uploads;
 sel={y:vy,m:vm,d:now.getDate()};
 refresh();
@@ -629,7 +654,7 @@ window.SYNC_KEY = "theos2-kuy8472";
 <script>
 (function(){
 const U=window.SYNC_URL,K=window.SYNC_KEY,B=document.getElementById("syncb");
-const BUILD="2026-10-25-g";let srvVer=1;const RO=!!window.RO;let detail="",srv={xml:0,geo:0,status:0};const UP=document.getElementById("syncup");
+const BUILD="2026-11-21-v2-store";let srvVer=1;const RO=!!window.RO;let detail="",srv={xml:0,geo:0,status:0};const UP=document.getElementById("syncup");
 const setB=(t,c,d)=>{B.textContent=t;B.style.color=c||"var(--mu)";B.style.cursor="pointer";B.title="คลิกเพื่อซิงค์ใหม่ / ดูรายละเอียด";detail=d||t};
 if(!U){window.syncSet=null;setB("แชร์ร่วมกัน: ยังไม่ตั้งค่า");return}
 async function call(url,opt){
@@ -651,7 +676,7 @@ async function flush(){
     if(ops.length){
       const m=new Map();ops.forEach(o=>m.set(o.kind+"\u0000"+o.id,o));
       const list=[...m.values()];
-      if(srvVer>=2){for(let i=0;i<list.length;i+=15)await call(U,{method:"POST",body:JSON.stringify({key:K,ops:list.slice(i,i+15)})})}
+      if(srvVer>=2){for(let i=0;i<list.length;i+=20)await call(U,{method:"POST",body:JSON.stringify({key:K,ops:list.slice(i,i+20)})})}
       else{for(const o of list)await call(U,{method:"POST",body:JSON.stringify({key:K,kind:o.kind,id:o.id,value:o.value})})}
       setB("แชร์ร่วมกัน: บันทึกแล้ว ("+list.length+" รายการ)","var(--ok)");
     }
@@ -663,14 +688,16 @@ if(RO)window.syncSet=null;
 let last="";
 const lj=k=>{try{return JSON.parse(localStorage.getItem(k)||"{}")}catch(_){return{}}};
 function apply(d){
-  try{const st=Object.assign({},d.status||{});pend.filter(o=>o.kind==="status").forEach(o=>delete st[o.id]);localStorage.setItem("irs_status",JSON.stringify(Object.assign(lj("irs_status"),st)))}catch(_){}
-  const lx=lj("irs_xml");
+  const remoteStatus=d.status||{};for(const id in remoteStatus){if(pend.some(o=>o.kind==="status"&&o.id===id))continue;if(statusCache[id]&&JSON.stringify(statusCache[id])!==JSON.stringify(remoteStatus[id]))TheosStore.get("irs_status_conflict:"+id).then(old=>old?null:TheosStore.set("irs_status_conflict:"+id,statusCache[id])).catch(console.warn);statusCache[id]=remoteStatus[id];TheosStore.set("irs_status:"+id,remoteStatus[id]).catch(console.warn)}
+  const lx=xmlCache;
   for(const n in d.xml||{}){
     if(d.xml[n]==="__DELETED__"){
+      if(lx[n])TheosStore.get("irs_xml_conflict:"+n).then(old=>old?null:TheosStore.set("irs_xml_conflict:"+n,lx[n])).catch(console.warn);
       const k=data.findIndex(r=>r.file===n);if(k>=0&&n!==SAMPLE_NAME){data.splice(k,1);selKey=null;pending=true}
-      if(n in lx){delete lx[n];try{localStorage.setItem("irs_xml",JSON.stringify(lx))}catch(_){}}
+      if(n in lx){delete lx[n];TheosStore.del("irs_xml:"+n).catch(console.warn)}
       continue}
     if(lx[n]===d.xml[n]&&data.some(r=>r.file===n))continue;
+    if(lx[n]&&lx[n]!==d.xml[n])TheosStore.get("irs_xml_conflict:"+n).then(old=>old?null:TheosStore.set("irs_xml_conflict:"+n,lx[n])).catch(console.warn);
     try{upsertXml(n,d.xml[n],{local:true,quiet:true})}catch(_){}
   }
   data.forEach(applyEd);
@@ -683,31 +710,34 @@ function apply(d){
 }
 function pushMissing(d){
   const sv=k=>(d&&d[k])||{};
-  const lx=lj("irs_xml");for(const n in lx)if(!(n in sv("xml")))syncSet("xml",n,lx[n]);
-  const ls=lj("irs_status");for(const n in ls)if(!(n in sv("status")))syncSet("status",n,ls[n]);
+  const lx=xmlCache;for(const n in lx)if(!(n in sv("xml")))syncSet("xml",n,lx[n]);
+  const ls=statusCache;for(const n in ls)if(!(n in sv("status")))syncSet("status",n,ls[n]);
   const mine=window.orbitGetUploads?orbitGetUploads():{};for(const n in mine)if(!(n in sv("geo")))syncSet("geo",n,mine[n]);
 }
 let busy=false;
 async function pull(){
   if(busy)return;busy=true;
   try{
-    const d=await call(U+(U.includes("?")?"&":"?")+"key="+encodeURIComponent(K)+"&t="+Date.now());
+    if(window.theosDataReady)await window.theosDataReady;
+    const cursor=localStorage.getItem("theos2_server_cursor")||"";
+    const d=await call(U+(U.includes("?")?"&":"?")+"key="+encodeURIComponent(K)+(cursor?"&since="+encodeURIComponent(cursor):"")+"&t="+Date.now());
     srvVer=d.ver||1;
     const h=JSON.stringify(d);
     if(h!==last){last=h;apply(d)}
-    if(!RO)pushMissing(d);
-    const liveX=Object.keys(d.xml||{}).filter(n=>d.xml[n]!=="__DELETED__");srv={xml:liveX.length,geo:Object.keys(d.geo||{}).filter(n=>d.geo[n]!=="__DELETED__").length,status:Object.keys(d.status||{}).length};
-    const lc={xml:Object.keys(lj("irs_xml")).length,status:Object.keys(lj("irs_status")).length,geo:Object.keys(window.orbitGetUploads?orbitGetUploads():{}).length};
+    if(d.serverTime)localStorage.setItem("theos2_server_cursor",String(d.serverTime));
+    if(d.full&&!RO)pushMissing(d);
+    const liveX=Object.keys(d.xml||{}).filter(n=>d.xml[n]!=="__DELETED__");srv={xml:d.counts?d.counts.xml:liveX.length,geo:d.counts?d.counts.geo:Object.keys(d.geo||{}).filter(n=>d.geo[n]!=="__DELETED__").length,status:d.counts?d.counts.status:Object.keys(d.status||{}).length};
+    const lc={xml:Object.keys(xmlCache).length,status:Object.keys(statusCache).length,geo:Object.keys(window.orbitGetUploads?orbitGetUploads():{}).length};
     const hh=new Date().toLocaleTimeString("th-TH");
     setB((RO?"โหมดดูอย่างเดียว":"แชร์ร่วมกัน")+": เชื่อมต่อแล้ว · เซิร์ฟเวอร์ XML "+srv.xml+" / geojson "+srv.geo+" / สถานะ "+srv.status+" · "+hh,srvVer>=2?"var(--ok)":"var(--bad)",
-      "เวอร์ชันหน้าเว็บ: "+BUILD+" · เวอร์ชัน Code.gs: "+srvVer+(srvVer<2?" (เก่า — ควรวาง Code.gs ใหม่แล้ว Deploy New version)":"")+"\nซิงค์ล่าสุด: "+hh+"\n\nไฟล์ XML บนเซิร์ฟเวอร์: "+(liveX.join(", ")||"-")+"\n.geojson บนเซิร์ฟเวอร์: "+(Object.keys(d.geo||{}).join(", ")||"-")+"\n\nบนเซิร์ฟเวอร์: XML "+srv.xml+" ไฟล์ · .geojson "+srv.geo+" ไฟล์ · สถานะ "+srv.status+" รายการ\nในเครื่องนี้: XML "+lc.xml+" · .geojson "+lc.geo+" · สถานะ "+lc.status+"\n\nถ้าบนเซิร์ฟเวอร์เป็น 0 แต่ในเครื่องมีข้อมูล ให้กด \"⬆ ส่งข้อมูลเครื่องนี้ขึ้นแชร์\"");
+      "เวอร์ชันหน้าเว็บ: "+BUILD+" · เวอร์ชัน Code.gs: "+srvVer+(srvVer<2?" (เก่า — ควรวาง Code.gs ใหม่แล้ว Deploy New version)":"")+"\nซิงค์ล่าสุด: "+hh+"\n\nรายการ XML ที่เปลี่ยนในรอบนี้: "+(liveX.join(", ")||"ไม่มี")+"\nรายการ GeoJSON ที่เปลี่ยนในรอบนี้: "+(Object.keys(d.geo||{}).join(", ")||"ไม่มี")+"\n\nบนเซิร์ฟเวอร์: XML "+srv.xml+" ไฟล์ · .geojson "+srv.geo+" ไฟล์ · สถานะ "+srv.status+" รายการ\nในเครื่องนี้: XML "+lc.xml+" · .geojson "+lc.geo+" · สถานะ "+lc.status+"\n\nถ้าต้องการส่งข้อมูลเครื่องนี้ขึ้นแชร์ ให้กด \"⬆ ส่งข้อมูลเครื่องนี้ขึ้นแชร์\"");
   }catch(e){fail(e)}
   busy=false;
 }
 B.onclick=()=>{pull().then(()=>alert(detail))};
 function pushAll(){
   if(!confirm("ส่งข้อมูลทั้งหมดในเครื่องนี้ (XML, .geojson, สถานะ) ขึ้นเซิร์ฟเวอร์?\nรายการชื่อเดียวกันบนเซิร์ฟเวอร์จะถูกทับด้วยค่าในเครื่องนี้"))return;
-  const lx=lj("irs_xml"),ls=lj("irs_status"),mine=window.orbitGetUploads?orbitGetUploads():{};
+  const lx=xmlCache,ls=statusCache,mine=window.orbitGetUploads?orbitGetUploads():{};
   const jobs=[];
   for(const n in lx)jobs.push(syncSet("xml",n,lx[n]));
   for(const n in ls)jobs.push(syncSet("status",n,ls[n]));
