@@ -169,7 +169,7 @@ body.ro .del{display:none!important}
 <button class="btn" onclick="exportCSV()">Export CSV</button><button class="btn" onclick="exportGJ()">Export GeoJSON</button> <span id="xcnt" style="font-size:12px;color:var(--mu)"></span> <button class="btn" id="sharebtn">🔗 แชร์</button> <button class="btn" id="syncup" style="display:none">⬆ ส่งข้อมูลเครื่องนี้ขึ้นแชร์</button> <span id="syncb" style="font-size:12px;color:var(--mu)"></span></div></header>
 <main>
 <div id="pg1" class="pg"><div class="cards" id="cards"></div>
-<div class="bar"><label class="meta" style="display:inline-flex;align-items:center;gap:4px;white-space:nowrap"><input type="checkbox" id="xall" onchange="toggleAllX(this.checked)"> เลือกทั้งหมดที่แสดง</label><input id="q" placeholder="ค้นหา Request Name / ProR-Name / Status Order / Status (Strip) ..."><select id="sf" title="กรองตาม Status Order"><option value="">ทุก Status Order</option></select><div class="cm"><button class="btn" id="colbtn">⚙ เลือกคอลัมน์</button><div id="colpop" hidden></div></div></div>
+<div class="bar"><label class="meta" style="display:inline-flex;align-items:center;gap:4px;white-space:nowrap"><input type="checkbox" id="xall" onchange="toggleAllX(this.checked)"> เลือกทั้งหมดที่ค้นหา/กรอง</label><input id="q" placeholder="ค้นหา Request Name / ProR-Name / Status Order / Status (Strip) ..."><select id="sf" title="กรองตาม Status Order"><option value="">ทุก Status Order</option></select><div class="cm"><button class="btn" id="colbtn">⚙ เลือกคอลัมน์</button><div id="colpop" hidden></div></div></div>
 <div class="tw"><table><thead><tr>
 <th class="k0" data-k="id">Request Name</th><th class="k1" data-k="name">ProR-Name</th><th class="k2" data-k="status">Status Order</th><th class="k10">Level</th><th class="k3">ผู้ขอใช้ข้อมูล</th><th class="k4">โครงการ</th><th class="k5">Application</th>
 <th class="k6">Area Of Interest</th><th class="k7">programmingItem</th><th class="k8">AOI (km2)</th><th class="k9">Status (Strip)</th></tr></thead><tbody id="tb"></tbody></table></div></div>
@@ -185,7 +185,7 @@ body.ro .del{display:none!important}
   <div class="row" style="margin-bottom:8px"><button id="otoday">วันนี้</button><span class="mut">รอบวงโคจรซ้ำทุก 26 วัน · Orbit Cycle 1 = 31 ต.ค. 2569</span></div>
   <div class="cal" id="ocal"></div>
   <div class="sec"><h2 id="oseltitle">วันที่เลือก</h2><div id="odetail" class="mut">คลิกวันที่ในปฏิทิน</div></div>
-  <div class="sec"><h2>โหมดแสดงผล</h2>
+  <div class="sec"><h2>โหมดแสดงผล</h2><div class="mut" style="margin-bottom:6px">เลือก Orbit ที่ต้องการแสดงได้ด้วยตนเองจากปฏิทินหรือรายการ Orbit ด้านล่าง</div>
    <div class="row"><button id="mDay" class="on">เฉพาะวันที่เลือก</button><button id="mAll">ทุก Orbit</button></div>
    <div class="orbs" id="oorbs" style="margin-top:8px"></div>
    <label class="lay"><input type="checkbox" id="cycAll"> รวมเส้น Orbit Cycle 1–26 (ในโหมดทุก Orbit)</label></div>
@@ -259,13 +259,20 @@ function edSel(v,fn){const o=[...BASE];if(!v)o.unshift("");else if(!o.some(x=>eq
  return`<select class="ed" style="background:${sc(v)};color:${fg(v)}" onchange="${fn}">${o.map(x=>`<option value="${x}" ${x===cur?"selected":""}>${x||"-"}</option>`).join("")}</select>`}
 const vis=r=>!$("mf").value||eq(r.status,$("mf").value);
 const expSel=new Set();            // Request Name ที่ติ๊กเลือกไว้สำหรับ Export
+let expAllScope=false;             // กำลัง Export ตามชุดผลการค้นหาที่เลือกทั้งหมด
 const fmt=(n,d=5)=>Number(n).toFixed(d);
-function updX(){const n=data.filter(r=>expSel.has(r.id)).length,el=$("xcnt");
- if(el)el.textContent=n?`ส่งออกเฉพาะที่เลือก ${n} Request`:"ไม่ได้เลือก = ส่งออกทั้งหมด";
+function updX(){const n=expSel.size,el=$("xcnt");
+ if(el)el.textContent=n?`ส่งออกเฉพาะที่เลือก ${n} Request`:(( $("q").value.trim()||$("sf").value)?"ไม่ได้เลือก = ส่งออกตามผลค้นหา/ตัวกรอง":"ไม่ได้เลือก = ส่งออกทั้งหมด");
  const a=$("xall");if(a){const v=window._vis||[];a.checked=v.length>0&&v.every(id=>expSel.has(id));a.indeterminate=!a.checked&&v.some(id=>expSel.has(id))}}
-function toggleX(i,on){const id=data[i].id;on?expSel.add(id):expSel.delete(id);updX()}
-function toggleAllX(on){(window._vis||[]).forEach(id=>on?expSel.add(id):expSel.delete(id));render()}
-const expData=()=>expSel.size?data.filter(r=>expSel.has(r.id)):data;
+function toggleX(i,on){expAllScope=false;const id=data[i].id;on?expSel.add(id):expSel.delete(id);updX()}
+function toggleAllX(on){const ids=window._vis||[];expAllScope=on;if(on){expSel.clear();ids.forEach(id=>expSel.add(id))}else ids.forEach(id=>expSel.delete(id));render()}
+const expData=()=>{
+ if(expAllScope)return data.filter(r=>expSel.has(r.id));
+ if(expSel.size)return data.filter(r=>expSel.has(r.id));
+ // เมื่อมีคำค้นหาหรือตัวกรอง ให้ส่งออกเฉพาะรายการที่แสดงในตาราง แม้ไม่ได้กดเลือกทั้งหมด
+ if($("q").value.trim()||$("sf").value){const visible=new Set(window._vis||[]);return data.filter(r=>visible.has(r.id))}
+ return data;
+};
 const n2=v=>Number(v).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
 function aoiCell(g,key,label){if(!g)return'<span class="meta">ไม่มีข้อมูล</span>';
  return`<div class="ar"><b>${n2(g.km2)}</b> km²</div><button class="btn" onclick="show('${key}')">ดูบนแผนที่</button>
@@ -273,8 +280,11 @@ function aoiCell(g,key,label){if(!g)return'<span class="meta">ไม่มีข
 `}
 function applyDef(){const m=stList(false).find(x=>/^activ/i.test(x)&&data.some(r=>r.status===x));$("sf").value=m||""}
 function applyMapDef(){const l=stList(false),m=l.find(x=>/^activ/i.test(x))||"ACTIVATED";$("mf").innerHTML='<option value="">ทุกสถานะ</option>'+l.map(x=>`<option ${x===m?"selected":""}>${x}</option>`).join("");$("mf").value=m}
-function render(){const q=$("q").value.toLowerCase(),sf=$("sf").value;
- let rows=data.map((r,i)=>({...r,i})).filter(r=>(!sf||eq(r.status,sf))&&[r.id,r.name,r.status,...Object.values(r.meta||{}),...Object.values(rule(r)||{}),...r.items.map(x=>x.status)].join(" ").toLowerCase().includes(q));
+function searchMatch(r){const q=$("q").value.trim().toLocaleLowerCase();if(!q)return true;
+ const fields=[r.id,r.name,r.status,...Object.values(r.meta||{}),...Object.values(rule(r)||{}),...r.items.map(x=>x.status)];
+ return fields.some(v=>v!=null&&String(v).toLocaleLowerCase().includes(q));}
+function render(){const sf=$("sf").value;
+ let rows=data.map((r,i)=>({...r,i})).filter(r=>(!sf||eq(r.status,sf))&&searchMatch(r));
  if(sortK)rows.sort((a,b)=>a[sortK].localeCompare(b[sortK])*sortD);
  const cur=selKey?selKey.split(":")[0]:null;
  window._vis=rows.map(r=>r.id);
@@ -287,7 +297,7 @@ function render(){const q=$("q").value.toLowerCase(),sf=$("sf").value;
  const cs=[["Request ทั้งหมด",data.length],["ACTIVATED",rc(/^activ/i),"พื้นที่ "+ra(/^activ/i)],["COMPLETED_OK",rc(/^complet/i),"พื้นที่ "+ra(/^complet/i)],["CANCELLED",rc(/^cancel/i)],["programmingItem",all.length],["พื้นที่ AOI รวม (ตร.กม.)",n2(data.reduce((s,r)=>s+(r.aoi?r.aoi.km2:0),0))]];
  $("cards").innerHTML=cs.map(c=>`<div class="c"><b>${c[1]}</b><span>${c[0]}</span>${c[2]?`<em>${c[2]}</em>`:""}</div>`).join("");
  const mcur=$("mf").value;$("mf").innerHTML='<option value="">ทุกสถานะ</option>'+stList(false).map(x=>`<option ${eq(x,mcur)?"selected":""}>${x}</option>`).join("");
- $("side").innerHTML=data.map((r,i)=>!vis(r)?"":`<div class="si ${cur==i?"on":""}" onclick="show('${i}:m')"><b class="mono">${r.id}</b><div class="it"><span class="st" style="background:${sc(r.status)};color:${fg(r.status)}">${r.status||"-"}</span> <span>${r.items.length} แนว</span></div>${r.items.map((it,j)=>`<div class="it" onclick="event.stopPropagation();show('${i}:${j}')"><i style="background:${sc(it.status)}"></i>แนวที่ ${j} · ${it.status||"-"}</div>`).join("")}</div>`).join("")||'<div class="meta">ไม่มีคำสั่งในสถานะนี้</div>';
+ $("side").innerHTML=data.map((r,i)=>!vis(r)||!searchMatch(r)?"":`<div class="si ${cur==i?"on":""}" onclick="show('${i}:m')"><b class="mono">${r.id}</b><div class="it"><span class="st" style="background:${sc(r.status)};color:${fg(r.status)}">${r.status||"-"}</span> <span>${r.items.length} แนว</span></div>${r.items.map((it,j)=>`<div class="it" onclick="event.stopPropagation();show('${i}:${j}')"><i style="background:${sc(it.status)}"></i>แนวที่ ${j} · ${it.status||"-"}</div>`).join("")}</div>`).join("")||'<div class="meta">ไม่มีคำสั่งในสถานะนี้</div>';
  const used=[...new Set(data.flatMap(r=>r.items.map(x=>x.status)).filter(Boolean))];
  $("leg").innerHTML='<span><i style="background:none;border:2px dashed #2563eb"></i>AOI หลัก</span>'+used.map(u=>`<span><i style="background:${sc(u)}"></i>${u}</span>`).join("");
  const sfc=$("sf").value;$("sf").innerHTML='<option value="">ทุก Status Order</option>'+stList(false).map(x=>`<option ${eq(x,sfc)?"selected":""}>${x}</option>`).join("");if(!$("pg3").hidden)dash();updX()}
@@ -307,7 +317,7 @@ function go(n){$("pg1").hidden=n!==1;$("pg2").hidden=n!==2;$("pg3").hidden=n!==3
  if(n===2){map.invalidateSize();if(window.orbitRedraw)orbitRedraw();if(pending){pending=false;window._nf=true;try{selKey?show(selKey):showAll()}finally{window._nf=false}}}else window.scrollTo(0,0)}
 function street(){Object.values(layers).forEach(l=>map.removeLayer(l));layers["Google Street"].addTo(map)}
 function draw(si,sj){group.clearLayers();const all=[],sb=[];
- data.forEach((r,i)=>{if(!vis(r))return;const isR=String(i)===si,whole=isR&&sj==="m";
+ data.forEach((r,i)=>{if(!vis(r)||!searchMatch(r))return;const isR=String(i)===si,whole=isR&&sj==="m";
   if(r.aoi){const m=L.polygon(r.aoi.pts,{color:"#2563eb",weight:isR?3:1.5,dashArray:"6 4",fill:false,opacity:isR?1:.55}).bindPopup(`<b>AOI หลัก</b><br>${r.id}<br>${n2(r.aoi.km2)} ตร.กม.`).addTo(group);all.push(m.getBounds());if(isR)sb.push(m.getBounds())}
   r.items.forEach((it,k)=>{if(!it.aoi)return;const hit=whole||(isR&&String(k)===sj),c=sc(it.status);
    const m=L.polygon(it.aoi.pts,{color:c,weight:hit?3:1.5,fillColor:c,fillOpacity:hit?.45:.22}).bindPopup(`<b>${r.id}</b><br>แนวที่ ${k} · <b style="color:${c}">${it.status||"-"}</b><br>${n2(it.aoi.km2)} ตร.กม.`).bindTooltip("แนวที่ "+k,{sticky:true}).addTo(group);
@@ -315,7 +325,7 @@ function draw(si,sj){group.clearLayers();const all=[],sb=[];
  const b=(sb.length?sb:all).reduce((a,x)=>a.extend(x),L.latLngBounds([]));if(b.isValid()&&sb.length&&!window._nf)map.fitBounds(b,{padding:[30,30],maxZoom:17})}
 function show(key){pending=false;go(2);street();selKey=key;const[i,j]=key.split(":"),r=data[i];if(!vis(r)){$("mf").value=r.status||""}draw(i,j);
  $("mt").textContent="แสดง: "+r.id+(j==="m"?" (ทุกแนว)":" — แนวที่ "+(+j))+" · ทุกคำสั่งแสดงอยู่บนแผนที่เดียวกัน";render()}
-function showAll(){pending=false;go(2);street();selKey=null;draw(null,null);const n=data.filter(vis).length;$("mt").textContent="แสดง "+n+" คำสั่ง"+($("mf").value?" · สถานะ "+$("mf").value:" · ทุกสถานะ")+" บน Google Street";render()}
+function showAll(){pending=false;go(2);street();selKey=null;draw(null,null);const n=data.filter(r=>vis(r)&&searchMatch(r)).length;$("mt").textContent="แสดง "+n+" คำสั่ง"+($("mf").value?" · สถานะ "+$("mf").value:" · ทุกสถานะ")+" บน Google Street";render()}
 function mapFilter(){showAll()}
 const xmlCache={},statusCache={};
 function upsertXml(name,text,o){o=o||{};const row=P(text,name);const i=data.findIndex(r=>r.file===name||(row.id&&r.id===row.id));if(i>=0){const old=data[i].file;data[i]=row;if(old!==name&&old!==SAMPLE_NAME){delete xmlCache[old];TheosStore.del("irs_xml:"+old).catch(console.warn);if(o.sync&&window.syncSet)syncSet("xml",old,"__DELETED__")}}else data.push(row);if(o.local){xmlCache[name]=text;TheosStore.set("irs_xml:"+name,text).catch(e=>{console.error(e);if(!o.quiet)alert("ไม่สามารถบันทึกไฟล์ลงพื้นที่จัดเก็บของเบราว์เซอร์ได้ กรุณาตรวจสอบพื้นที่ว่างหรือส่งข้อมูลขึ้นเซิร์ฟเวอร์")})}if(o.fresh){const r=data.find(x=>x.file===name);if(r){r.status=r.xs;r.items.forEach(x=>x.status=x.xs);saveEd(r)}}if(o.sync&&window.syncSet)syncSet("xml",name,text)}
@@ -329,15 +339,15 @@ function delXml(i){const r=data[i];if(!r||r.file===SAMPLE_NAME)return;
 function dl(name,t,type){const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([t],{type}));a.download=name;a.click()}
 function exportCSV(){const q=s=>'"'+String(s).replace(/"/g,'""')+'"',L=[["Request Name","ProR-Name","Status Order","Level","Area Of Interest (km2)","AOI_centroid","programmingItem","Status (Strip)","AOI (km2)","item_centroid","acquisitions"].join(",")];
  expData().forEach(r=>{const c=g=>g?fmt(g.c[0],6)+" "+fmt(g.c[1],6):"";(r.items.length?r.items:[{}]).forEach((it,j)=>L.push([r.id,r.name,r.status,ef(r,"lvl"),r.aoi?r.aoi.km2.toFixed(3):"",c(r.aoi),it.status?j:"",it.status||"",it.aoi?it.aoi.km2.toFixed(3):"",c(it.aoi),it.acq??""].map(q).join(",")))});
- dl(expSel.size?"ir_status_selected.csv":"ir_status.csv","\ufeff"+L.join("\n"),"text/csv")}
+ dl((expAllScope||expSel.size)?"ir_status_selected.csv":"ir_status.csv","\ufeff"+L.join("\n"),"text/csv")}
 function exportGJ(){const f=[],ring=g=>[g.pts.map(p=>[p[1],p[0]])];
  expData().forEach(r=>{if(r.aoi)f.push({type:"Feature",properties:{requestIdentifier:r.id,progrName:r.name,progrStatus:r.status,level:"AOI"},geometry:{type:"Polygon",coordinates:ring(r.aoi)}});
  r.items.forEach((it,j)=>it.aoi&&f.push({type:"Feature",properties:{requestIdentifier:r.id,item:j,status:it.status,level:"programmingItem"},geometry:{type:"Polygon",coordinates:ring(it.aoi)}}))});
- dl(expSel.size?"ir_status_selected.geojson":"ir_status.geojson",JSON.stringify({type:"FeatureCollection",features:f},null,1),"application/geo+json")}
+ dl((expAllScope||expSel.size)?"ir_status_selected.geojson":"ir_status.geojson",JSON.stringify({type:"FeatureCollection",features:f},null,1),"application/geo+json")}
 fi.onchange=e=>load(e.target.files);
 ["dragover","drop"].forEach(t=>document.body.addEventListener(t,e=>{if(e.target.closest&&e.target.closest("#odrop"))return;e.preventDefault();if(t==="drop"){const f=[...e.dataTransfer.files].filter(x=>/\.xml$/i.test(x.name));if(f.length)load(f)}}));
 $("tb").addEventListener("click",e=>{if(e.target.closest("a,button,details,select,textarea,input,label,td.k3,td.k4,td.k5,td.k10"))return;const tr=e.target.closest("tr[data-i]");if(tr)show(tr.dataset.i+":m")});
-$("q").oninput=render;$("sf").onchange=render;
+$("q").oninput=()=>{expSel.clear();expAllScope=false;render();if(!$("pg2").hidden){draw(null,null);const n=data.filter(r=>vis(r)&&searchMatch(r)).length;$("mt").textContent=$("q").value.trim()?`ผลการค้นหา "${$("q").value.trim()}" · ${n} คำสั่งบนแผนที่`:`แสดง ${n} คำสั่งบนแผนที่`}};$("sf").onchange=()=>{expSel.clear();expAllScope=false;render();if(!$("pg2").hidden)showAll()};
 document.querySelectorAll("th[data-k]").forEach(th=>th.onclick=()=>{sortD=sortK===th.dataset.k?-sortD:1;sortK=th.dataset.k;render()});
 const REQS=["Reseller","General","Defense","GISTDA"],OT="__other__",OTL="อื่นๆ (กรอกเอง)",
 APPS=["กฎหมาย, ประกอบสำนวน, พยานเอกสาร","การเกษตร, การใช้ที่ดิน","การทำแผนที่, เส้นทางคมนาคม, ผังเมือง","การศึกษา, ประกอบการฝึกอบรม","ข้อมูลแผนที่ฐาน (Base map)","ความมั่นคงของชาติ","ทรัพยากรชายฝั่ง","ทรัพยากรน้ำ","ธรณีวิทยา","ประชาสัมพันธ์, ของที่ระลึก","ป่าไม้","ภัยธรรมชาติและสิ่งแวดล้อม","ส่วนบุคคล"],
